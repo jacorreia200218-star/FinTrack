@@ -204,3 +204,49 @@ def net_worth(conn: sqlite3.Connection) -> dict:
         "total": round(eur_accounts + pf["value"] + pf["cash"], 2),
         "balances": balances,
     }
+
+
+# ---------- património por grupos (Pessoal, Conjunta, Poupanças, Cripto, Investimentos) ----------
+GROUPS = ["Pessoal", "Conjunta", "Poupanças", "Cripto", "Investimentos"]
+
+
+def default_group(account: str) -> str:
+    return "Poupanças" if "poupan" in account.lower() else "Pessoal"
+
+
+def groups_for_accounts(conn: sqlite3.Connection) -> dict[str, str]:
+    """Conta -> grupo. Usa a escolha do utilizador; se não houver, adivinha pelo nome."""
+    names = [r[0] for r in conn.execute("SELECT DISTINCT account FROM transactions ORDER BY account")]
+    overrides = {r["account"]: r["grupo"] for r in conn.execute("SELECT account, grupo FROM account_groups")}
+    return {n: overrides.get(n, default_group(n)) for n in names}
+
+
+def valuation_summary(conn: sqlite3.Connection) -> list[dict]:
+    """Ativos registados à mão (PPR, Bitcoin...): valor atual, variação e histórico."""
+    rows = conn.execute("SELECT asset, grupo, date, value, note, id FROM valuations ORDER BY asset, date, id").fetchall()
+    assets: dict[str, dict] = {}
+    for r in rows:
+        a = assets.setdefault(r["asset"], {"asset": r["asset"], "grupo": r["grupo"], "history": []})
+        a["history"].append({"id": r["id"], "date": r["date"], "value": r["value"], "note": r["note"]})
+    out = []
+    for a in assets.values():
+        h = a["history"]
+        first, last = h[0]["value"], h[-1]["value"]
+        a.update(
+            first=first,
+            last=last,
+            date=h[-1]["date"],
+            change=round(last - first, 2),
+            change_pct=round((last / first - 1) * 100, 1) if first else None,
+        )
+        out.append(a)
+    return out
+
+
+def btc_invested(conn: sqlite3.Connection) -> tuple[float, int]:
+    """Total em euros que foi convertido em Bitcoin, segundo os extratos da Revolut."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(-amount), 0) AS s, COUNT(*) AS n FROM transactions "
+        "WHERE kind = 'EXCHANGE' AND description LIKE '%BTC%'"
+    ).fetchone()
+    return round(row["s"], 2), row["n"]

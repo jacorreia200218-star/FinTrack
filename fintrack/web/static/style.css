@@ -293,3 +293,15 @@ select.cat { padding: 4px 8px; font-size: 12px; max-width: 170px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- abas (Património) ---------- */
+nav.tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 22px; padding-bottom: 2px; scrollbar-width: none; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs a {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text-2); font-size: 12.5px; font-weight: 500;
+  white-space: nowrap; transition: all .15s ease;
+}
+nav.tabs a:hover { border-color: var(--accent); text-decoration: none; opacity: 1; }
+nav.tabs a.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+nav.tabs a.on .muted { color: var(--accent-ink); opacity: .8; }

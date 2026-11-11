@@ -318,6 +318,84 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
             return RedirectResponse(f"/banco?erro={urlencode({'e': 'Algum banco precisa de ser ligado de novo.'})[2:]}", status_code=303)
         return RedirectResponse(f"/banco?msg=Sincronizado.+{ok}+movimentos+novos.", status_code=303)
 
+    def _group_totals(groups_map: dict, balances: dict, assets: list, pf: dict) -> dict:
+        totals = {g: 0.0 for g in analytics.GROUPS}
+        for name, g in groups_map.items():
+            if name in balances:
+                totals[g] += balances[name]["balance"]
+        for a in assets:
+            totals[a["grupo"]] = totals.get(a["grupo"], 0.0) + a["last"]
+        totals["Investimentos"] += pf["value"] + pf["cash"]
+        return {g: round(v, 2) for g, v in totals.items()}
+
+    @app.get("/patrimonio", response_class=HTMLResponse)
+    def wealth(request: Request, tab: str = "Pessoal", msg: str = ""):
+        if tab not in analytics.GROUPS:
+            tab = "Pessoal"
+        groups_map = analytics.groups_for_accounts(conn)
+        balances = {b["account"]: b for b in analytics.account_balances(conn)}
+        assets = analytics.valuation_summary(conn)
+        pf = analytics.portfolio(conn)
+        totals = _group_totals(groups_map, balances, assets, pf)
+        accounts = [{"name": n, "balance": balances.get(n)} for n, g in groups_map.items() if g == tab]
+        tab_assets = [a for a in assets if a["grupo"] == tab]
+        btc_inv, btc_n = analytics.btc_invested(conn)
+        chart = {
+            "labels": sorted({h["date"] for a in tab_assets for h in a["history"]}),
+            "series": [
+                {"label": a["asset"], "points": {h["date"]: h["value"] for h in a["history"]}}
+                for a in tab_assets
+            ],
+        }
+        return render(
+            request, "patrimonio.html", active="wealth",
+            tabs=analytics.GROUPS, tab=tab, totals=totals, total=round(totals[tab], 2),
+            accounts=accounts, assets=tab_assets, all_assets=assets,
+            all_accounts=sorted(groups_map.items()), pf=pf,
+            btc_inv=btc_inv, btc_n=btc_n, msg=msg, today=date.today().isoformat(),
+            chart_json=json.dumps(chart),
+        )
+
+    @app.post("/patrimonio/grupo")
+    def wealth_set_group(account: str = Form(...), grupo: str = Form(...), tab: str = Form("Pessoal")):
+        if grupo not in analytics.GROUPS:
+            return RedirectResponse("/patrimonio", status_code=303)
+        conn.execute(
+            "INSERT INTO account_groups (account, grupo) VALUES (?, ?) "
+            "ON CONFLICT(account) DO UPDATE SET grupo = excluded.grupo",
+            (account, grupo),
+        )
+        conn.commit()
+        return RedirectResponse(f"/patrimonio?tab={urlencode({'t': grupo})[2:]}", status_code=303)
+
+    @app.post("/patrimonio/valor")
+    def wealth_add_value(
+        asset: str = Form(...), grupo: str = Form(...), value: str = Form(...),
+        day: str = Form(""), note: str = Form(""),
+    ):
+        try:
+            clean = value.replace("€", "").replace(" ", "").strip()
+            if "," in clean:  # formato português: 1.025,50
+                clean = clean.replace(".", "").replace(",", ".")
+            amount = float(clean)
+            when = date.fromisoformat(day) if day else date.today()
+        except ValueError:
+            return RedirectResponse("/patrimonio?msg=Valor+ou+data+inv%C3%A1lidos", status_code=303)
+        if grupo not in analytics.GROUPS or not asset.strip():
+            return RedirectResponse("/patrimonio", status_code=303)
+        conn.execute(
+            "INSERT INTO valuations (asset, grupo, date, value, note) VALUES (?, ?, ?, ?, ?)",
+            (asset.strip(), grupo, when.isoformat(), amount, note.strip()),
+        )
+        conn.commit()
+        return RedirectResponse(f"/patrimonio?tab={urlencode({'t': grupo})[2:]}", status_code=303)
+
+    @app.post("/patrimonio/valor/apagar")
+    def wealth_delete_value(id: int = Form(...), grupo: str = Form("Pessoal")):
+        conn.execute("DELETE FROM valuations WHERE id = ?", (id,))
+        conn.commit()
+        return RedirectResponse(f"/patrimonio?tab={urlencode({'t': grupo})[2:]}", status_code=303)
+
     @app.get("/importar", response_class=HTMLResponse)
     def import_page(request: Request):
         history = conn.execute("SELECT * FROM imports ORDER BY id DESC LIMIT 20").fetchall()

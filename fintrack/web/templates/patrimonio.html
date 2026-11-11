@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Património</h1>
+    <p class="sub">Organizado por tipo de dinheiro. As contas aparecem sozinhas; os valores que não vêm do banco (PPR, Bitcoin) registas tu.</p>
+  </div>
+</div>
+
+{% if msg %}<div class="flash" style="background:var(--neg-soft);color:var(--neg)">{{ msg }}</div>{% endif %}
+
+<nav class="tabs">
+  {% for t in tabs %}
+  <a href="/patrimonio?tab={{ t | urlencode }}" class="{{ 'on' if t == tab }}">
+    {{ t }} <span class="muted">{{ totals[t] | eur }}</span>
+  </a>
+  {% endfor %}
+</nav>
+
+<div class="grid kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="card kpi">
+    <div class="label">Total · {{ tab }}</div>
+    <div class="value">{{ total | eur }}</div>
+    <div class="delta">{{ accounts | length }} contas · {{ assets | length }} registos manuais</div>
+  </div>
+  {% if tab == 'Cripto' %}
+  <div class="card kpi">
+    <div class="label">Investido em Bitcoin</div>
+    <div class="value">{{ btc_inv | eur }}</div>
+    <div class="delta">{{ btc_n }} conversões nos extratos da Revolut</div>
+  </div>
+  {% endif %}
+  {% if tab == 'Investimentos' %}
+  <div class="card kpi">
+    <div class="label">Ganho / perda ETFs</div>
+    <div class="value {{ 'pos' if pf.gain and pf.gain > 0 else 'neg' if pf.gain }}">{{ pf.gain | eur }}</div>
+    <div class="delta">{% if pf.gain is not none and pf.net_invested %}{{ ((pf.gain / pf.net_invested) * 100) | round(1) }}% sobre {{ pf.net_invested | eur }}{% endif %}</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if tab == 'Investimentos' %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>ETFs (DEGIRO)</h2><a class="small" href="/portfolio">ver detalhe →</a></div>
+  <p class="sub" style="margin:0">Valor atual {{ pf.value | eur }} + {{ pf.cash | eur }} em dinheiro. Atualiza-se ao importar o Portfolio.csv da DEGIRO.</p>
+</div>
+{% endif %}
+
+{% if accounts %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Contas</h2></div>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Conta</th><th>Saldo</th><th class="hide-sm">Atualizado</th><th>Mover para</th></tr>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.name }}</td>
+        <td class="num">{{ (a.balance.balance if a.balance else None) | eur }}</td>
+        <td class="hide-sm small muted">{{ a.balance.date if a.balance else '—' }}</td>
+        <td>
+          <form class="cat-form" method="post" action="/patrimonio/grupo">
+            <input type="hidden" name="account" value="{{ a.name }}">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <select class="cat" name="grupo" onchange="this.form.submit()">
+              {% for g in tabs %}<option {{ 'selected' if g == tab }}>{{ g }}</option>{% endfor %}
+            </select>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if assets %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Registos manuais</h2></div>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Ativo</th><th class="num">Valor atual</th><th class="num">Variação</th><th class="hide-sm">Último registo</th><th class="num hide-sm">Registos</th></tr>
+      {% for a in assets %}
+      <tr>
+        <td><b>{{ a.asset }}</b></td>
+        <td class="num">{{ a.last | eur }}</td>
+        <td class="num">
+          <span class="trend {{ 'down' if a.change > 0 else ('up' if a.change < 0 else 'flat') }}">
+            {{ '↑' if a.change > 0 else ('↓' if a.change < 0 else '•') }} {{ a.change | eur }}{% if a.change_pct is not none %} ({{ a.change_pct }}%){% endif %}
+          </span>
+        </td>
+        <td class="hide-sm small muted">{{ a.date }}{% if a.history[-1].note %} · {{ a.history[-1].note }}{% endif %}</td>
+        <td class="num hide-sm small muted">{{ a.history | length }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% if assets | selectattr('history') | list | length %}
+  <div class="chart-box" style="margin-top:20px"><canvas id="evol"></canvas></div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Registar valor</h2></div>
+  <form method="post" action="/patrimonio/valor" class="filters" style="margin:0">
+    <input type="hidden" name="grupo" value="{{ tab }}">
+    <input name="asset" list="ativos" placeholder="Ativo (ex.: PPR ActivoBank)" required style="min-width:220px">
+    <datalist id="ativos">
+      {% for a in all_assets %}<option value="{{ a.asset }}">{% endfor %}
+    </datalist>
+    <input name="value" inputmode="decimal" placeholder="Valor (€)" required style="width:130px">
+    <input type="date" name="day" value="{{ today }}" style="width:150px">
+    <input name="note" placeholder="Nota (opcional)" style="min-width:180px">
+    <button type="submit">Guardar</button>
+  </form>
+  <p class="small muted" style="margin:12px 0 0">Para o PPR, escreve o valor que aparece no site do ActivoBank. Para o Bitcoin, o valor em euros que aparece na app da Revolut.</p>
+
+  {% if assets %}
+  <div class="table-wrap" style="margin-top:16px">
+    <table class="small">
+      {% for a in assets %}{% for h in a.history | reverse %}
+      <tr>
+        <td class="muted">{{ h.date }}</td><td>{{ a.asset }}</td><td class="num">{{ h.value | eur }}</td><td class="muted">{{ h.note }}</td>
+        <td class="num">
+          <form method="post" action="/patrimonio/valor/apagar" style="display:inline">
+            <input type="hidden" name="id" value="{{ h.id }}"><input type="hidden" name="grupo" value="{{ tab }}">
+            <button type="submit" style="background:none;color:var(--muted);border:0;padding:2px 6px">apagar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}{% endfor %}
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if assets %}
+<script>
+const data = {{ chart_json | safe }};
+const { palette, eur, v } = window.fin;
+new Chart(document.getElementById("evol"), {
+  type: "line",
+  data: {
+    labels: data.labels,
+    datasets: data.series.map((s, i) => ({
+      label: s.label,
+      data: data.labels.map(d => s.points[d] ?? null),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      spanGaps: true, tension: 0.3, pointRadius: 3,
+    })),
+  },
+  options: {
+    maintainAspectRatio: false,
+    scales: { y: { ticks: { callback: eur } } },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } },
+               tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${eur(c.parsed.y)}` } } },
+  },
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -60,6 +60,20 @@ CREATE TABLE IF NOT EXISTS positions (
     value_eur REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS account_groups (
+    account TEXT PRIMARY KEY,
+    grupo TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS valuations (
+    id INTEGER PRIMARY KEY,
+    asset TEXT NOT NULL,
+    grupo TEXT NOT NULL,
+    date TEXT NOT NULL,
+    value REAL NOT NULL,
+    note TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS investment_txns (
     id INTEGER PRIMARY KEY,
     date TEXT NOT NULL,
