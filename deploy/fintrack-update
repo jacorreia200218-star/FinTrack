@@ -21,7 +21,7 @@ fi
 # ---------- ligação aos bancos: sincroniza movimentos novos ----------
 if [ -f "$DATA_DIR/secrets/enablebanking.env" ]; then
   # Corre como o utilizador da app, para a base de dados continuar a pertencer-lhe
-  if runuser -u fintrack -- env FINTRACK_DB="$DB" "$APP_DIR/.venv/bin/python" -m fintrack.bank.sync; then
+  if runuser -u fintrack -- env FINTRACK_DB="$DB" PYTHONPATH="$APP_DIR" "$APP_DIR/.venv/bin/python" -m fintrack.bank.sync; then
     log "bancos sincronizados"
   else
     log "falha ao sincronizar os bancos (ver linha acima)"
