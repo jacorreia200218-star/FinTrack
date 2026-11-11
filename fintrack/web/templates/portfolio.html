@@ -77,7 +77,7 @@ const data = {{ chart_json | safe }};
 const { palette, eur, v } = window.fin;
 new Chart(document.getElementById("alloc"), {
   type: "doughnut",
-  data: { labels: data.labels, datasets: [{ data: data.data, backgroundColor: data.labels.map((_, i) => palette[i % palette.length]), borderColor: v("--card") }] },
+  data: { labels: data.labels, datasets: [{ data: data.data, backgroundColor: data.labels.map((_, i) => palette[i % palette.length]), borderColor: v("--surface") }] },
   options: { maintainAspectRatio: false, cutout: "62%",
     plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } },
                tooltip: { callbacks: { label: (c) => `${c.label}: ${eur(c.parsed)}` } } } },

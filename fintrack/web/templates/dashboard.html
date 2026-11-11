@@ -1,34 +1,46 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Painel — {{ month }}</h1>
-<p class="sub">Dados até {{ last_txn or "—" }}. Transferências entre contas tuas e investimentos não contam como gasto.</p>
+<div class="page-head">
+  <div>
+    <h1>Painel · {{ month }}</h1>
+    <p class="sub">Atualizado até {{ last_txn or "—" }}. Transferências entre contas e investimentos não contam como gasto.</p>
+  </div>
+</div>
+
+{% macro trend(now, before, invert=false) -%}
+  {%- if before -%}
+    {%- set p = ((now / before - 1) * 100) | round | int -%}
+    {%- set bad = (p > 0) if not invert else (p < 0) -%}
+    <span class="trend {{ 'flat' if p == 0 else ('up' if bad else 'down') }}">{{ '↑' if p > 0 else ('↓' if p < 0 else '•') }} {{ p | abs }}%</span>
+  {%- endif -%}
+{%- endmacro %}
 
 <div class="grid kpis">
   <div class="card kpi">
     <div class="label">Gasto este mês</div>
     <div class="value">{{ current.spent | eur }}</div>
-    <div class="delta">mês passado: {{ previous.spent | eur }}</div>
+    <div class="delta">{{ trend(current.spent, previous.spent) }} vs. {{ previous.spent | eur }} no mês passado</div>
   </div>
   <div class="card kpi">
     <div class="label">Entradas este mês</div>
     <div class="value pos">{{ current.income | eur }}</div>
-    <div class="delta">saldo do mês: {{ (current.income - current.spent) | eur }}</div>
+    <div class="delta">saldo do mês <span class="{{ 'pos' if current.income - current.spent >= 0 else 'neg' }}">{{ (current.income - current.spent) | eur }}</span></div>
   </div>
   <div class="card kpi">
-    <div class="label">Despesas fixas por mês</div>
+    <div class="label">Despesas fixas / mês</div>
     <div class="value">{{ forecast.monthly_fixed | eur }}</div>
-    <div class="delta">ainda por pagar: {{ forecast.upcoming_total | eur }}</div>
+    <div class="delta">ainda por pagar este mês: {{ forecast.upcoming_total | eur }}</div>
   </div>
   <div class="card kpi">
     <div class="label">Património</div>
     <div class="value">{{ networth.total | eur }}</div>
-    <div class="delta">contas {{ networth.accounts | eur }} · invest. {{ networth.investments | eur }}</div>
+    <div class="delta">contas {{ networth.accounts | eur }} · investido {{ networth.investments | eur }}</div>
   </div>
 </div>
 
 {% if alerts %}
-<div class="card" style="margin-bottom:16px">
-  <h2>⚠️ Onde estás a gastar mais do que o normal</h2>
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Atenção · acima do normal</h2></div>
   {% for a in alerts %}
   <div class="alert">
     <b>{{ a.category }}</b>:
@@ -141,7 +153,7 @@ new Chart(document.getElementById("donut"), {
   type: "doughnut",
   data: {
     labels: data.donut.labels,
-    datasets: [{ data: data.donut.data, backgroundColor: data.donut.labels.map(colorOf), borderColor: v("--card") }],
+    datasets: [{ data: data.donut.data, backgroundColor: data.donut.labels.map(colorOf), borderColor: v("--surface") }],
   },
   options: {
     maintainAspectRatio: false, cutout: "62%",
