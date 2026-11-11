@@ -81,3 +81,27 @@ def test_bitcoin_gain_is_against_cost(tmp_path):
     conn.commit()
     page = client.get("/patrimonio?tab=Cripto").text
     assert "10,04" in page and "7.32%" in page
+
+
+def test_planning_pages_and_forms(tmp_path):
+    app = create_app(tmp_path / "pl.db", require_login=False)
+    c = TestClient(app)
+    assert c.get("/planear").status_code == 200
+    assert c.post("/planear/orcamento", data={"category": "Restauração", "monthly": "150"}, follow_redirects=False).status_code == 303
+    assert c.post("/planear/meta", data={"name": "Fundo", "target": "5000", "saved": "1.000,00", "target_date": "2027-12-01"}, follow_redirects=False).status_code == 303
+    page = c.get("/planear").text
+    assert "Fundo" in page and "150" in page
+    assert c.get("/conjunta").status_code == 200
+    assert c.post("/conjunta/1", data={"percent": "50"}, follow_redirects=False).status_code == 303
+
+
+def test_shared_owed_and_forecast_math(conn):
+    txns = [Txn(account="Revolut", date=date(2026, 11, 2), description="Continente", amount=-80)]
+    db.save_import(conn, ImportResult(source="revolut", transactions=txns), "x")
+    tid = conn.execute("SELECT id FROM transactions").fetchone()[0]
+    conn.execute("INSERT INTO shared_splits VALUES (?, 50)", (tid,))
+    assert analytics.shared_summary(conn, date(2026, 11, 10))["owed_to_me"] == 40.0
+
+    fc = analytics.forecast_30d(conn, date(2026, 11, 10), {"Revolut": "Pessoal"},
+                                {"Revolut": {"balance": 500.0}}, [])
+    assert fc["now"] == 500.0 and fc["fixed_due"] == 0.0

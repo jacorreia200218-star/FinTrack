@@ -259,3 +259,68 @@ def btc_cost(conn: sqlite3.Connection) -> dict:
         return {"value": round(manual["value"], 2), "source": "manual"}
     value, n = btc_invested(conn)
     return {"value": value, "source": f"extratos ({n} conversões)"}
+
+
+# ---------- previsão, conjunta e histórico ----------
+def forecast_30d(conn: sqlite3.Connection, today: date, groups_map: dict, balances: dict, recs: list) -> dict:
+    """Saldo previsto daqui a 30 dias nas contas pessoais.
+
+    Saldo de hoje + rendimento médio (3 meses) - despesas fixas que vencem - gasto variável médio.
+    É uma estimativa: serve para antecipar, não para decidir com precisão."""
+    from datetime import timedelta as _td
+    from .recurring import step
+
+    pessoal = [n for n, g in groups_map.items() if g == "Pessoal"]
+    now = round(sum(balances[n]["balance"] for n in pessoal if n in balances), 2)
+
+    months = last_months(4, today)[:-1]
+    totals = monthly_totals(conn, months)
+    avg_income = sum(t["income"] for t in totals) / len(totals)
+    avg_spent = sum(t["spent"] for t in totals) / len(totals)
+    active = [r for r in recs if r.active]
+    monthly_fixed = sum(r.monthly_cost for r in active)
+    variable_month = max(avg_spent - monthly_fixed, 0.0)
+
+    horizon = today + _td(days=30)
+    fixed_due = 0.0
+    for r in active:
+        d = r.next_date
+        while d <= horizon:
+            if d >= today:
+                fixed_due += r.amount
+            d = step(d, r)
+
+    expected = round(now + avg_income - fixed_due - variable_month, 2)
+    return {
+        "now": now,
+        "income": round(avg_income, 2),
+        "fixed_due": round(fixed_due, 2),
+        "variable": round(variable_month, 2),
+        "expected": expected,
+    }
+
+
+def shared_summary(conn: sqlite3.Connection, today: date) -> dict:
+    """Despesas marcadas como partilhadas nos últimos 60 dias e quanto o outro deve."""
+    since = (today - timedelta(days=60)).isoformat()
+    rows = conn.execute(
+        """SELECT t.id, t.date, t.description, t.amount, t.category, s.my_percent
+           FROM transactions t JOIN shared_splits s ON s.txn_id = t.id
+           WHERE t.date >= ? AND t.amount < 0 ORDER BY t.date DESC""",
+        (since,),
+    ).fetchall()
+    items = [dict(r) for r in rows]
+    owed = round(sum(-i["amount"] * (1 - i["my_percent"] / 100) for i in items), 2)
+    return {"rows": items, "owed_to_me": owed}
+
+
+def record_net_worth(conn: sqlite3.Connection, today: date, total: float) -> None:
+    conn.execute(
+        "INSERT INTO net_worth (date, total) VALUES (?, ?) ON CONFLICT(date) DO UPDATE SET total = excluded.total",
+        (today.isoformat(), round(total, 2)),
+    )
+    conn.commit()
+
+
+def net_worth_history(conn: sqlite3.Connection) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT date, total FROM net_worth ORDER BY date")]

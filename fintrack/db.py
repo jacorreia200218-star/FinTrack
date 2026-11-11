@@ -65,6 +65,29 @@ CREATE TABLE IF NOT EXISTS account_groups (
     grupo TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS budgets (
+    category TEXT PRIMARY KEY,
+    monthly REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    target REAL NOT NULL,
+    saved REAL NOT NULL DEFAULT 0,
+    target_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS shared_splits (
+    txn_id INTEGER PRIMARY KEY,
+    my_percent REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS net_worth (
+    date TEXT PRIMARY KEY,
+    total REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS manual_costs (
     key TEXT PRIMARY KEY,
     value REAL NOT NULL

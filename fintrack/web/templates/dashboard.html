@@ -38,6 +38,23 @@
   </div>
 </div>
 
+{% if expired_banks %}
+<div class="flash" style="background:var(--warn-bg);color:var(--text-2);border:1px solid var(--warn-line)">
+  ⚠️ A ligação ao banco {{ expired_banks | join(', ') }} expirou. Renova em <a href="/banco">Bancos</a> para os movimentos voltarem a entrar.
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Saldo previsto em 30 dias · contas pessoais</h2></div>
+  <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+    <div><div class="small muted">Hoje</div><div class="num" style="font-size:1.1rem;text-align:left">{{ forecast30.now | eur }}</div></div>
+    <div><div class="small muted">+ rendimento médio</div><div class="num pos" style="text-align:left">{{ forecast30.income | eur }}</div></div>
+    <div><div class="small muted">− fixas a vencer</div><div class="num neg" style="text-align:left">{{ forecast30.fixed_due | eur }}</div></div>
+    <div><div class="small muted">− gasto variável médio</div><div class="num neg" style="text-align:left">{{ forecast30.variable | eur }}</div></div>
+  </div>
+  <div class="small muted" style="margin-top:14px">Estimativa: {{ forecast30.expected | eur }}. Usa a média dos últimos 3 meses.</div>
+</div>
+
 {% if alerts %}
 <div class="card" style="margin-bottom:20px">
   <div class="card-head"><h2>Atenção · acima do normal</h2></div>
@@ -126,6 +143,25 @@
     {% endif %}
   </div>
 </div>
+<div class="card" style="margin-top:20px">
+  <div class="card-head"><h2>Património ao longo do tempo</h2></div>
+  {% if nw_history | length > 1 %}
+  <div class="chart-box sm"><canvas id="nw"></canvas></div>
+  {% else %}<p class="muted small">O gráfico aparece quando houver pelo menos dois dias registados. Atualiza-se todos os dias que abres o painel.</p>{% endif %}
+</div>
+{% if nw_history | length > 1 %}
+<script>
+const nwData = {{ nw_history | map(attribute='date') | list | tojson }};
+const nwVals = {{ nw_history | map(attribute='total') | list | tojson }};
+new Chart(document.getElementById("nw"), {
+  type: "line",
+  data: { labels: nwData, datasets: [{ label: "Património", data: nwVals, borderColor: window.fin.v("--accent"),
+    backgroundColor: "rgba(108,152,255,.12)", fill: true, tension: .35, pointRadius: 0 }] },
+  options: { maintainAspectRatio: false, scales: { y: { ticks: { callback: window.fin.eur } } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => window.fin.eur(c.parsed.y) } } } },
+});
+</script>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

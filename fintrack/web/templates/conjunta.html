@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Conjunta</h1>
+    <p class="sub">Marca as despesas partilhadas com a tua parceira e diz a tua parte. A app calcula quanto ela te deve. Assume que pagaste tu com o teu cartão ou conta.</p>
+  </div>
+</div>
+
+<div class="grid kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div class="card kpi">
+    <div class="label">Ela deve-te (últimos 60 dias)</div>
+    <div class="value pos">{{ summary.owed_to_me | eur }}</div>
+    <div class="delta">{{ summary.rows | length }} despesas partilhadas</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><h2>Despesas dos últimos 60 dias</h2></div>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Data</th><th>Descrição</th><th class="num">Valor</th><th>Minha parte</th></tr>
+      {% for c in candidates %}
+      <tr>
+        <td class="small muted">{{ c.date[8:10] }}/{{ c.date[5:7] }}</td>
+        <td>{{ c.description }}</td>
+        <td class="num">{{ c.amount | eur }}</td>
+        <td>
+          <form method="post" action="/conjunta/{{ c.id }}" class="cat-form">
+            <input name="percent" value="{{ '%.0f' % c.my_percent if c.my_percent is not none }}" placeholder="não partilhada" inputmode="decimal" style="width:80px">
+            <span class="small muted">%</span>
+            <button type="submit" style="padding:4px 9px">✓</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">Sem despesas nos últimos 60 dias.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="small muted" style="margin:12px 0 0">Exemplo: uma compra de 80 € no supermercado, com 50 % tua, faz com que ela deva 40 €. Deixa em branco para não contar.</p>
+</div>
+{% endblock %}

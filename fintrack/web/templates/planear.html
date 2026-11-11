@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Planear</h1>
+    <p class="sub">Define um limite por categoria e as metas que queres atingir. A app avisa-te quando estás perto.</p>
+  </div>
+</div>
+{% if msg %}<div class="flash" style="background:var(--neg-soft);color:var(--neg)">{{ msg }}</div>{% endif %}
+
+<div class="grid two" id="orcamentos">
+  <div class="card">
+    <div class="card-head"><h2>Orçamentos do mês</h2></div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Categoria</th><th class="num">Gasto</th><th class="num">Limite</th><th style="min-width:160px">Estado</th></tr>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.category }}</td>
+          <td class="num {{ 'neg' if r.over }}">{{ r.used | eur }}</td>
+          <td class="num">
+            <form method="post" action="/planear/orcamento" class="cat-form" style="justify-content:flex-end">
+              <input type="hidden" name="category" value="{{ r.category }}">
+              <input name="monthly" value="{{ '%.0f' % r.limit if r.limit else '' }}" placeholder="—" inputmode="decimal" style="width:90px;text-align:right">
+              <button type="submit" style="padding:4px 9px">✓</button>
+            </form>
+          </td>
+          <td>
+            {% if r.pct is not none %}
+              <div class="bar"><i style="width:{{ [r.pct, 100] | min }}%;{{ 'background:var(--neg)' if r.over }}"></i></div>
+              <span class="small {{ 'neg' if r.over else 'muted' }}">{{ r.pct }}%{% if r.over %} · acima do limite{% endif %}</span>
+            {% else %}<span class="small muted">sem limite</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="metas">
+    <div class="card-head"><h2>Metas</h2></div>
+    {% for g in goals %}
+    <div style="padding:14px 0;border-bottom:1px solid var(--line-2)">
+      <div class="card-head" style="margin-bottom:6px">
+        <b>{{ g.name }}</b>
+        <form method="post" action="/planear/meta/apagar"><input type="hidden" name="id" value="{{ g.id }}">
+          <button type="submit" style="background:none;color:var(--muted);border:0;padding:0">apagar</button></form>
+      </div>
+      <div class="small muted">{{ g.saved | eur }} de {{ g.target | eur }}{% if g.target_date %} · até {{ g.target_date }}{% endif %}</div>
+      <div class="bar"><i style="width:{{ g.pct }}%"></i></div>
+      {% if g.monthly_needed %}<div class="small muted" style="margin-top:6px">Para chegar a tempo, põe de lado {{ g.monthly_needed | eur }} por mês.</div>{% endif %}
+      <form method="post" action="/planear/meta/atualizar" class="cat-form" style="margin-top:10px">
+        <input type="hidden" name="id" value="{{ g.id }}">
+        <input name="saved" inputmode="decimal" placeholder="Total poupado (€)" style="width:150px">
+        <button type="submit" style="padding:5px 10px">Atualizar</button>
+      </form>
+    </div>
+    {% else %}<p class="muted small">Ainda sem metas.</p>{% endfor %}
+    <form method="post" action="/planear/meta" class="filters" style="margin:16px 0 0">
+      <input name="name" placeholder="Nome (ex.: fundo de emergência)" required style="min-width:220px">
+      <input name="target" placeholder="Objetivo (€)" required style="width:130px">
+      <input name="saved" placeholder="Já poupado (€)" style="width:130px">
+      <input type="date" name="target_date" min="{{ today }}" style="width:150px">
+      <button type="submit">Criar meta</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

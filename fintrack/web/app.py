@@ -182,9 +182,20 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
             "donut": {"labels": donut_labels, "data": [donut.get(c, rest) for c in donut_labels]},
         }
 
+        nw = analytics.net_worth(conn)
+        analytics.record_net_worth(conn, today, nw["total"])
+        groups_map = analytics.groups_for_accounts(conn)
+        balances = {b["account"]: b for b in analytics.account_balances(conn)}
+        fc = analytics.forecast_30d(conn, today, groups_map, balances, recs)
+        history = analytics.net_worth_history(conn)
+        expired = conn.execute("SELECT bank FROM bank_links WHERE status = 'expired'").fetchall()
+
         return render(
             request,
             "dashboard.html",
+            forecast30=fc,
+            nw_history=history,
+            expired_banks=[r["bank"] for r in expired],
             active="dashboard",
             month=month_label(months[-1]),
             current=current,
@@ -420,6 +431,112 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
         conn.execute("DELETE FROM valuations WHERE id = ?", (id,))
         conn.commit()
         return RedirectResponse(f"/patrimonio?tab={urlencode({'t': grupo})[2:]}", status_code=303)
+
+    @app.get("/planear", response_class=HTMLResponse)
+    def plan_page(request: Request, msg: str = ""):
+        today = date.today()
+        month_start = today.replace(day=1)
+        next_month = (month_start + timedelta(days=32)).replace(day=1)
+        spent = {c["category"]: c["total"] for c in analytics.spending_by_category(
+            conn, month_start.isoformat(), next_month.isoformat())}
+        budgets = {r["category"]: r["monthly"] for r in conn.execute("SELECT category, monthly FROM budgets")}
+        rows = []
+        for cat in CATEGORIES:
+            if cat in analytics.NON_SPENDING or cat == "Transferências":
+                continue
+            limit = budgets.get(cat)
+            used = spent.get(cat, 0.0)
+            pct = round(used / limit * 100) if limit else None
+            rows.append({"category": cat, "limit": limit, "used": used, "pct": pct,
+                         "over": bool(limit and used > limit)})
+        goals = []
+        for g in conn.execute("SELECT * FROM goals ORDER BY target_date IS NULL, target_date, id").fetchall():
+            remaining = max(g["target"] - g["saved"], 0)
+            monthly_needed = None
+            if g["target_date"] and remaining > 0:
+                end = date.fromisoformat(g["target_date"])
+                months_left = max((end.year - today.year) * 12 + end.month - today.month, 1)
+                monthly_needed = round(remaining / months_left, 2)
+            goals.append({**dict(g), "remaining": round(remaining, 2),
+                          "pct": min(round(g["saved"] / g["target"] * 100), 100) if g["target"] else 0,
+                          "monthly_needed": monthly_needed})
+        return render(request, "planear.html", active="plan", rows=rows, goals=goals,
+                      today=today.isoformat(), msg=msg)
+
+    @app.post("/planear/orcamento")
+    def plan_budget(category: str = Form(...), monthly: str = Form("")):
+        clean = monthly.replace("€", "").replace(" ", "").strip()
+        if "," in clean:
+            clean = clean.replace(".", "").replace(",", ".")
+        if not clean:
+            conn.execute("DELETE FROM budgets WHERE category = ?", (category,))
+        else:
+            try:
+                conn.execute("INSERT INTO budgets (category, monthly) VALUES (?, ?) "
+                             "ON CONFLICT(category) DO UPDATE SET monthly = excluded.monthly",
+                             (category, float(clean)))
+            except ValueError:
+                return RedirectResponse("/planear?msg=Valor+inv%C3%A1lido", status_code=303)
+        conn.commit()
+        return RedirectResponse("/planear#orcamentos", status_code=303)
+
+    @app.post("/planear/meta")
+    def plan_goal_add(name: str = Form(...), target: str = Form(...), saved: str = Form("0"), target_date: str = Form("")):
+        def num(v):
+            c = v.replace("€", "").replace(" ", "").strip()
+            return float(c.replace(".", "").replace(",", ".") if "," in c else c or 0)
+        try:
+            t, sv = num(target), num(saved)
+            if target_date:
+                date.fromisoformat(target_date)
+        except ValueError:
+            return RedirectResponse("/planear?msg=Valores+ou+data+inv%C3%A1lidos", status_code=303)
+        conn.execute("INSERT INTO goals (name, target, saved, target_date) VALUES (?, ?, ?, ?)",
+                     (name.strip(), t, sv, target_date or None))
+        conn.commit()
+        return RedirectResponse("/planear#metas", status_code=303)
+
+    @app.post("/planear/meta/atualizar")
+    def plan_goal_update(id: int = Form(...), saved: str = Form(...)):
+        c = saved.replace("€", "").replace(" ", "").strip()
+        conn.execute("UPDATE goals SET saved = ? WHERE id = ?",
+                     (float(c.replace(".", "").replace(",", ".") if "," in c else c), id))
+        conn.commit()
+        return RedirectResponse("/planear#metas", status_code=303)
+
+    @app.post("/planear/meta/apagar")
+    def plan_goal_delete(id: int = Form(...)):
+        conn.execute("DELETE FROM goals WHERE id = ?", (id,))
+        conn.commit()
+        return RedirectResponse("/planear#metas", status_code=303)
+
+    @app.get("/conjunta", response_class=HTMLResponse)
+    def shared_page(request: Request):
+        today = date.today()
+        candidates = conn.execute(
+            """SELECT t.id, t.date, t.description, t.amount, t.category, s.my_percent
+               FROM transactions t LEFT JOIN shared_splits s ON s.txn_id = t.id
+               WHERE t.amount < 0 AND t.date >= ? AND t.category NOT IN (%s)
+               ORDER BY t.date DESC LIMIT 120""" % ",".join("?" * len(analytics.NON_SPENDING)),
+            ((today - timedelta(days=60)).isoformat(), *analytics.NON_SPENDING),
+        ).fetchall()
+        summary = analytics.shared_summary(conn, today)
+        return render(request, "conjunta.html", active="shared", candidates=candidates, summary=summary)
+
+    @app.post("/conjunta/{txn_id}")
+    def shared_set(txn_id: int, percent: str = Form("")):
+        if not percent.strip():
+            conn.execute("DELETE FROM shared_splits WHERE txn_id = ?", (txn_id,))
+        else:
+            try:
+                p = float(percent.replace(",", "."))
+            except ValueError:
+                return RedirectResponse("/conjunta", status_code=303)
+            p = max(0.0, min(100.0, p))
+            conn.execute("INSERT INTO shared_splits (txn_id, my_percent) VALUES (?, ?) "
+                         "ON CONFLICT(txn_id) DO UPDATE SET my_percent = excluded.my_percent", (txn_id, p))
+        conn.commit()
+        return RedirectResponse("/conjunta", status_code=303)
 
     @app.get("/importar", response_class=HTMLResponse)
     def import_page(request: Request):
