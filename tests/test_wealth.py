@@ -69,3 +69,15 @@ def test_btc_manual_cost_overrides_statements(conn):
     assert analytics.btc_cost(conn)["value"] == 0.2
     conn.execute("INSERT INTO manual_costs (key, value) VALUES ('bitcoin', 137.23)")
     assert analytics.btc_cost(conn) == {"value": 137.23, "source": "manual"}
+
+
+def test_bitcoin_gain_is_against_cost(tmp_path):
+    app = create_app(tmp_path / "b.db", require_login=False)
+    client = TestClient(app)
+    conn = app.state.conn
+    conn.execute("INSERT INTO valuations (asset, grupo, date, value) VALUES ('Bitcoin', 'Cripto', '2026-10-01', 140)")
+    conn.execute("INSERT INTO valuations (asset, grupo, date, value) VALUES ('Bitcoin', 'Cripto', '2026-11-11', 147.27)")
+    conn.execute("INSERT INTO manual_costs (key, value) VALUES ('bitcoin', 137.23)")
+    conn.commit()
+    page = client.get("/patrimonio?tab=Cripto").text
+    assert "10,04" in page and "7.31%" in page

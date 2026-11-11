@@ -340,6 +340,12 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
         accounts = [{"name": n, "balance": balances.get(n)} for n, g in groups_map.items() if g == tab]
         tab_assets = [a for a in assets if a["grupo"] == tab]
         btc = analytics.btc_cost(conn)
+        # Bitcoin: a variação é face ao custo investido, não ao primeiro registo
+        for a in tab_assets:
+            if a["asset"].strip().lower() == "bitcoin" and btc["value"]:
+                a["change"] = round(a["last"] - btc["value"], 2)
+                a["change_pct"] = round((a["last"] / btc["value"] - 1) * 100, 2)
+                a["base_label"] = f"face ao custo de {btc['value']:.2f} €".replace(".", ",")
         chart = {
             "labels": sorted({h["date"] for a in tab_assets for h in a["history"]}),
             "series": [

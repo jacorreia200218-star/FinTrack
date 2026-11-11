@@ -93,7 +93,7 @@
             {{ '↑' if a.change > 0 else ('↓' if a.change < 0 else '•') }} {{ a.change | eur }}{% if a.change_pct is not none %} ({{ a.change_pct }}%){% endif %}
           </span>
         </td>
-        <td class="hide-sm small muted">{{ a.date }}{% if a.history[-1].note %} · {{ a.history[-1].note }}{% endif %}</td>
+        <td class="hide-sm small muted">{{ a.date }}{% if a.history[-1].note %} · {{ a.history[-1].note }}{% endif %}{% if a.base_label %} · {{ a.base_label }}{% endif %}</td>
         <td class="num hide-sm small muted">{{ a.history | length }}</td>
       </tr>
       {% endfor %}
