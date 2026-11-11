@@ -71,6 +71,14 @@ nav a.on { color: var(--text); background: var(--bg); font-weight: 600; }
 nav a.cta { background: var(--accent); color: #fff; }
 nav a.cta.on, nav a.cta:hover { background: var(--accent); color: #fff; opacity: 0.9; }
 
+form.logout { display: inline; }
+form.logout button { background: none; border: 0; color: var(--muted); padding: 6px 12px; }
+form.logout button:hover { color: var(--text); }
+.login-box { max-width: 380px; margin: 10vh auto 0; }
+.login-box label { display: block; font-size: 0.85rem; color: var(--muted); margin: 12px 0 4px; }
+.login-box input { width: 100%; }
+.login-box button { width: 100%; margin-top: 16px; }
+
 main { max-width: 1180px; margin: 0 auto; padding: 24px; }
 
 .grid { display: grid; gap: 16px; }

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card login-box">
+  {% if mode == "setup" %}
+  <h1>Criar palavra-passe</h1>
+  <p class="sub small">É a primeira vez que abres a FinTrack neste servidor. Escolhe a palavra-passe que vais usar para entrar (mínimo {{ min_length }} caracteres). Guarda-a num gestor de passwords, por exemplo as Passwords do iPhone/iPad.</p>
+  {% else %}
+  <h1>Entrar</h1>
+  {% endif %}
+
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+
+  <form method="post">
+    <label for="password">Palavra-passe</label>
+    <input id="password" type="password" name="password" required autofocus
+           autocomplete="{{ 'new-password' if mode == 'setup' else 'current-password' }}">
+    {% if mode == "setup" %}
+    <label for="confirm">Repetir palavra-passe</label>
+    <input id="confirm" type="password" name="confirm" required autocomplete="new-password">
+    {% endif %}
+    <input type="text" name="username" value="fintrack" autocomplete="username" hidden>
+    <button type="submit">{{ 'Criar e entrar' if mode == 'setup' else 'Entrar' }}</button>
+  </form>
+</div>
+{% endblock %}

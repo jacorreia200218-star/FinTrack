@@ -1,0 +1,55 @@
+#!/bin/bash
+# Cópia de segurança da base de dados + atualização a partir do GitHub.
+# Se a versão nova não arrancar, volta automaticamente à anterior.
+set -uo pipefail
+
+APP_DIR=/opt/fintrack
+DATA_DIR=/var/lib/fintrack
+DB="$DATA_DIR/data/fintrack.db"
+BRANCH="$(cat "$APP_DIR/.deploy-branch" 2>/dev/null || echo main)"
+
+log() { echo "[fintrack-update $(date -Is)] $*"; }
+
+# ---------- cópia de segurança (30 dias) ----------
+if [ -f "$DB" ]; then
+  backup="$DATA_DIR/backups/fintrack-$(date +%F).db"
+  sqlite3 "$DB" ".backup '$backup'" && chown fintrack:fintrack "$backup" && chmod 600 "$backup"
+  find "$DATA_DIR/backups" -name 'fintrack-*.db' -mtime +30 -delete
+  log "cópia de segurança: $backup"
+fi
+
+# ---------- atualização ----------
+cd "$APP_DIR" || exit 1
+if ! git fetch --quiet origin "$BRANCH"; then
+  log "sem acesso ao GitHub; fica tudo como está"
+  exit 0
+fi
+old="$(git rev-parse HEAD)"
+new="$(git rev-parse "origin/$BRANCH")"
+if [ "$old" = "$new" ]; then
+  log "já está na versão mais recente ($old)"
+  exit 0
+fi
+
+healthy() {
+  sleep 5
+  code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/login)"
+  [ "$code" = "200" ] || [ "$code" = "303" ]
+}
+
+deploy() {
+  git reset --quiet --hard "$1" &&
+    "$APP_DIR/.venv/bin/pip" install --quiet -r requirements.txt &&
+    install -m 755 deploy/fintrack-update /usr/local/bin/fintrack-update &&
+    systemctl restart fintrack.service &&
+    healthy
+}
+
+log "a atualizar $old -> $new"
+if deploy "$new"; then
+  log "atualizado para $new"
+else
+  log "a versão nova falhou; a voltar a $old"
+  deploy "$old" || log "ATENÇÃO: a versão anterior também não arrancou"
+  exit 1
+fi

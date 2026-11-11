@@ -22,9 +22,14 @@ vão para o GitHub nem para nenhum servidor.
 
 Transferências entre as tuas contas (ActivoBank → Revolut), câmbios e investimentos **não** contam como gasto.
 
-## Como usar
+## Instalar num servidor grátis (para usar no iPad/telemóvel)
 
-Precisas de Python 3.11 ou mais recente.
+Segue o guia **[docs/INSTALAR.md](docs/INSTALAR.md)**. Usa a Oracle Cloud (grátis) e a
+Tailscale: a app fica acessível só nos teus aparelhos, com login de dois fatores e palavra-passe.
+
+## Correr num computador
+
+Precisas de Python 3.10 ou mais recente.
 
 ```bash
 pip install -r requirements.txt
@@ -75,6 +80,8 @@ fintrack/
   recurring.py   # deteção de despesas fixas
   analytics.py   # totais, alertas, portfólio
   db.py          # SQLite
+  auth.py        # login (palavra-passe + cookie assinado)
   web/           # FastAPI + templates Jinja + Chart.js
+deploy/          # instalação no servidor (systemd, Tailscale, atualizações, cópias)
 tests/           # pytest (python -m pytest)
 ```

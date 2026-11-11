@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -50,3 +51,14 @@ def test_bad_file_shows_error(client):
     r = client.post("/importar", files=[("files", ("x.csv", b"foo,bar\n1,2\n", "text/csv"))])
     assert r.status_code == 200
     assert "Não reconheci" in r.text
+
+
+def test_backup_download(client, tmp_path):
+    import sqlite3
+
+    client.post("/importar", files=[("files", ("r.csv", (Path(__file__).parent / "fixtures" / "revolut_en.csv").read_bytes(), "text/csv"))])
+    r = client.get("/copia-seguranca")
+    assert r.status_code == 200
+    out = tmp_path / "copia.db"
+    out.write_bytes(r.content)
+    assert sqlite3.connect(out).execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 5

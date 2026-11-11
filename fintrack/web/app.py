@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import sqlite3
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.background import BackgroundTask
 
 from .. import analytics, db, recurring
+from ..auth import COOKIE, MIN_LENGTH, SESSION_DAYS, Auth
 from ..categories import CATEGORIES
 from ..importers import UnknownFormat, parse_file
 
@@ -38,19 +44,93 @@ def month_label(m: str) -> str:
     return f"{MONTHS_PT[int(mm) - 1]} {y[2:]}"
 
 
-def create_app(db_path: str | Path | None = None) -> FastAPI:
-    app = FastAPI(title="FinTrack")
+PUBLIC_PATHS = ("/login", "/criar-password", "/static/")
+
+
+def create_app(db_path: str | Path | None = None, require_login: bool | None = None) -> FastAPI:
+    """require_login: obriga a ter palavra-passe (no servidor). Por omissão lê FINTRACK_REQUIRE_LOGIN.
+    Se já existir uma palavra-passe definida, o login é sempre obrigatório."""
+    app = FastAPI(title="FinTrack", docs_url=None, redoc_url=None, openapi_url=None)
     conn = db.connect(db_path)
     app.state.conn = conn
+    auth = Auth(Path(db_path or db.DEFAULT_PATH).parent / "auth.json")
+    app.state.auth = auth
+    if require_login is None:
+        require_login = os.environ.get("FINTRACK_REQUIRE_LOGIN") == "1"
+
+    @app.middleware("http")
+    async def login_required(request: Request, call_next):
+        path = request.url.path
+        if (auth.configured or require_login) and not path.startswith(PUBLIC_PATHS):
+            if not auth.configured:
+                return RedirectResponse("/criar-password", status_code=303)
+            if not auth.valid_token(request.cookies.get(COOKIE)):
+                return RedirectResponse("/login", status_code=303)
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        return response
+
+    def start_session(request: Request) -> RedirectResponse:
+        resp = RedirectResponse("/", status_code=303)
+        https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        resp.set_cookie(COOKIE, auth.make_token(), max_age=SESSION_DAYS * 86400,
+                        httponly=True, secure=https, samesite="lax")
+        return resp
 
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["eur"] = eur
     templates.env.filters["month"] = month_label
     templates.env.globals["source_label"] = lambda s: SOURCE_LABELS.get(s, s)
+    templates.env.globals["auth_enabled"] = lambda: auth.configured
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     def render(request: Request, name: str, **ctx):
         return templates.TemplateResponse(request, name, ctx)
+
+    @app.get("/login", response_class=HTMLResponse)
+    def login_page(request: Request):
+        if not auth.configured:
+            return RedirectResponse("/criar-password", status_code=303)
+        return render(request, "login.html", mode="login", error=None)
+
+    @app.post("/login", response_class=HTMLResponse)
+    def login(request: Request, password: str = Form("")):
+        if not auth.configured:
+            return RedirectResponse("/criar-password", status_code=303)
+        if auth.check_password(password):
+            return start_session(request)
+        wait = auth.locked_for()
+        error = (f"Demasiadas tentativas. Tenta de novo daqui a {wait // 60 + 1} minutos."
+                 if wait else "Palavra-passe errada.")
+        return render(request, "login.html", mode="login", error=error)
+
+    @app.get("/criar-password", response_class=HTMLResponse)
+    def setup_page(request: Request):
+        if auth.configured:
+            return RedirectResponse("/login", status_code=303)
+        return render(request, "login.html", mode="setup", error=None, min_length=MIN_LENGTH)
+
+    @app.post("/criar-password", response_class=HTMLResponse)
+    def setup(request: Request, password: str = Form(""), confirm: str = Form("")):
+        if auth.configured:  # só se pode definir uma vez
+            return RedirectResponse("/login", status_code=303)
+        error = None
+        if len(password) < MIN_LENGTH:
+            error = f"A palavra-passe tem de ter pelo menos {MIN_LENGTH} caracteres."
+        elif password != confirm:
+            error = "As duas palavras-passe não são iguais."
+        if error:
+            return render(request, "login.html", mode="setup", error=error, min_length=MIN_LENGTH)
+        auth.set_password(password)
+        return start_session(request)
+
+    @app.post("/sair")
+    def logout():
+        resp = RedirectResponse("/login" if auth.configured else "/", status_code=303)
+        resp.delete_cookie(COOKIE)
+        return resp
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request):
@@ -174,6 +254,16 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         }
         return render(request, "portfolio.html", active="portfolio", pf=pf,
                       networth=analytics.net_worth(conn), chart_json=json.dumps(chart))
+
+    @app.get("/copia-seguranca")
+    def download_backup():
+        """Cópia completa da base de dados (abre-se com qualquer leitor de SQLite)."""
+        tmp = Path(tempfile.mkdtemp()) / f"fintrack-{date.today().isoformat()}.db"
+        dest = sqlite3.connect(tmp)
+        conn.backup(dest)
+        dest.close()
+        return FileResponse(tmp, filename=tmp.name, media_type="application/vnd.sqlite3",
+                            background=BackgroundTask(shutil.rmtree, tmp.parent, ignore_errors=True))
 
     @app.get("/importar", response_class=HTMLResponse)
     def import_page(request: Request):
