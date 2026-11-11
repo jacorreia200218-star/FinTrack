@@ -250,3 +250,12 @@ def btc_invested(conn: sqlite3.Connection) -> tuple[float, int]:
         "WHERE kind = 'EXCHANGE' AND description LIKE '%BTC%'"
     ).fetchone()
     return round(row["s"], 2), row["n"]
+
+
+def btc_cost(conn: sqlite3.Connection) -> dict:
+    """Custo total do Bitcoin: o valor escrito à mão tem prioridade sobre o calculado pelos extratos."""
+    manual = conn.execute("SELECT value FROM manual_costs WHERE key = 'bitcoin'").fetchone()
+    if manual is not None:
+        return {"value": round(manual["value"], 2), "source": "manual"}
+    value, n = btc_invested(conn)
+    return {"value": value, "source": f"extratos ({n} conversões)"}

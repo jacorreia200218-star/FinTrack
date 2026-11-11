@@ -61,3 +61,11 @@ def test_wealth_page_and_group_change(tmp_path):
     page = client.get("/patrimonio?tab=Poupanças").text
     assert "PPR ActivoBank" in page and "1.025,50" in page
     assert client.get("/patrimonio?tab=Cripto").status_code == 200
+
+
+def test_btc_manual_cost_overrides_statements(conn):
+    txns = [Txn(account="Revolut", date=date(2026, 10, 1), description="Conversão cambial para BTC", amount=-0.20, kind="EXCHANGE")]
+    db.save_import(conn, ImportResult(source="revolut", transactions=txns), "x")
+    assert analytics.btc_cost(conn)["value"] == 0.2
+    conn.execute("INSERT INTO manual_costs (key, value) VALUES ('bitcoin', 137.23)")
+    assert analytics.btc_cost(conn) == {"value": 137.23, "source": "manual"}

@@ -339,7 +339,7 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
         totals = _group_totals(groups_map, balances, assets, pf)
         accounts = [{"name": n, "balance": balances.get(n)} for n, g in groups_map.items() if g == tab]
         tab_assets = [a for a in assets if a["grupo"] == tab]
-        btc_inv, btc_n = analytics.btc_invested(conn)
+        btc = analytics.btc_cost(conn)
         chart = {
             "labels": sorted({h["date"] for a in tab_assets for h in a["history"]}),
             "series": [
@@ -352,7 +352,7 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
             tabs=analytics.GROUPS, tab=tab, totals=totals, total=round(totals[tab], 2),
             accounts=accounts, assets=tab_assets, all_assets=assets,
             all_accounts=sorted(groups_map.items()), pf=pf,
-            btc_inv=btc_inv, btc_n=btc_n, msg=msg, today=date.today().isoformat(),
+            btc=btc, msg=msg, today=date.today().isoformat(),
             chart_json=json.dumps(chart),
         )
 
@@ -389,6 +389,25 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
         )
         conn.commit()
         return RedirectResponse(f"/patrimonio?tab={urlencode({'t': grupo})[2:]}", status_code=303)
+
+    @app.post("/patrimonio/custo-btc")
+    def wealth_btc_cost(value: str = Form(""), limpar: str = Form("")):
+        if limpar or not value.strip():
+            conn.execute("DELETE FROM manual_costs WHERE key = 'bitcoin'")
+        else:
+            clean = value.replace("€", "").replace(" ", "").strip()
+            if "," in clean:
+                clean = clean.replace(".", "").replace(",", ".")
+            try:
+                conn.execute(
+                    "INSERT INTO manual_costs (key, value) VALUES ('bitcoin', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (float(clean),),
+                )
+            except ValueError:
+                return RedirectResponse("/patrimonio?tab=Cripto&msg=Valor+inv%C3%A1lido", status_code=303)
+        conn.commit()
+        return RedirectResponse("/patrimonio?tab=Cripto", status_code=303)
 
     @app.post("/patrimonio/valor/apagar")
     def wealth_delete_value(id: int = Form(...), grupo: str = Form("Pessoal")):

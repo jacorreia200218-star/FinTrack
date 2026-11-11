@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS account_groups (
     grupo TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS manual_costs (
+    key TEXT PRIMARY KEY,
+    value REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS valuations (
     id INTEGER PRIMARY KEY,
     asset TEXT NOT NULL,

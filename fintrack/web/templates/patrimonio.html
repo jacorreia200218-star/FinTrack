@@ -26,8 +26,13 @@
   {% if tab == 'Cripto' %}
   <div class="card kpi">
     <div class="label">Investido em Bitcoin</div>
-    <div class="value">{{ btc_inv | eur }}</div>
-    <div class="delta">{{ btc_n }} conversões nos extratos da Revolut</div>
+    <div class="value">{{ btc.value | eur }}</div>
+    <div class="delta">fonte: {{ btc.source }}</div>
+    <form method="post" action="/patrimonio/custo-btc" class="cat-form" style="margin-top:8px">
+      <input name="value" inputmode="decimal" placeholder="Escrever à mão (€)" style="width:150px">
+      <button type="submit">Guardar</button>
+      {% if btc.source == 'manual' %}<button type="submit" name="limpar" value="1" style="background:none;color:var(--muted);border:0">usar extratos</button>{% endif %}
+    </form>
   </div>
   {% endif %}
   {% if tab == 'Investimentos' %}
