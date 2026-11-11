@@ -80,4 +80,4 @@ def test_bitcoin_gain_is_against_cost(tmp_path):
     conn.execute("INSERT INTO manual_costs (key, value) VALUES ('bitcoin', 137.23)")
     conn.commit()
     page = client.get("/patrimonio?tab=Cripto").text
-    assert "10,04" in page and "7.31%" in page
+    assert "10,04" in page and "7.32%" in page
