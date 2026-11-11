@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Importar extratos</h1>
+<p class="sub">Podes importar o mesmo ficheiro (ou períodos sobrepostos) várias vezes: os movimentos repetidos são ignorados.</p>
+
+{% if results %}
+<div class="card" style="margin-bottom:16px">
+  <h2>Resultado</h2>
+  <table>
+    {% for r in results %}
+    <tr>
+      <td>{{ r.file }}</td>
+      {% if r.ok %}
+      <td><span class="pill">{{ source_label(r.source) }}</span></td>
+      <td class="ok">✓ {{ r.added }} novos{% if r.duplicates %}, {{ r.duplicates }} já existiam{% endif %}{% if r.skipped %}, {{ r.skipped }} linhas ignoradas{% endif %}
+        {% for w in r.warnings %}<br><span class="err small">{{ w }}</span>{% endfor %}</td>
+      {% else %}
+      <td colspan="2" class="err">✗ {{ r.error }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="margin:12px 0 0"><a class="btn" href="/">Ver painel</a></p>
+</div>
+{% endif %}
+
+<form class="dropzone" method="post" enctype="multipart/form-data">
+  <div><b>Escolhe um ou mais ficheiros</b> (CSV ou XLSX)</div>
+  <input type="file" name="files" multiple accept=".csv,.xlsx,.txt" required>
+  <div class="small muted" style="margin-bottom:12px">
+    O formato (Revolut, DEGIRO ou banco) é detetado automaticamente.<br>
+    Nome a dar à conta se for um extrato de banco:
+    <input name="bank_name" value="ActivoBank" style="width:140px">
+  </div>
+  <button type="submit">Importar</button>
+</form>
+
+<div class="grid two-even" style="margin-top:16px">
+  <div class="card">
+    <h2>Onde exportar cada extrato</h2>
+    <ul class="steps small">
+      <li><b>Revolut</b> (app): Conta principal → <i>⋯</i> → Extrato → Excel/CSV → escolhe o período (ex.: último ano).</li>
+      <li><b>ActivoBank</b> (site): Contas → Movimentos → escolhe o período → Exportar (Excel/CSV).</li>
+      <li><b>DEGIRO portfólio</b> (site): Portfólio → Exportar → CSV.</li>
+      <li><b>DEGIRO transações</b> (site): Caixa → Transações → período desde a abertura → Exportar → CSV.</li>
+    </ul>
+  </div>
+  <div class="card table-wrap">
+    <h2>Últimos imports</h2>
+    {% if history %}
+    <table class="small">
+      {% for h in history %}
+      <tr><td>{{ h.created_at[:16] }}</td><td>{{ h.filename }}</td><td>{{ source_label(h.source) }}</td><td class="num">+{{ h.added }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted small">Ainda nada.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

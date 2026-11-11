@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Painel — {{ month }}</h1>
+<p class="sub">Dados até {{ last_txn or "—" }}. Transferências entre contas tuas e investimentos não contam como gasto.</p>
+
+<div class="grid kpis">
+  <div class="card kpi">
+    <div class="label">Gasto este mês</div>
+    <div class="value">{{ current.spent | eur }}</div>
+    <div class="delta">mês passado: {{ previous.spent | eur }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Entradas este mês</div>
+    <div class="value pos">{{ current.income | eur }}</div>
+    <div class="delta">saldo do mês: {{ (current.income - current.spent) | eur }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Despesas fixas por mês</div>
+    <div class="value">{{ forecast.monthly_fixed | eur }}</div>
+    <div class="delta">ainda por pagar: {{ forecast.upcoming_total | eur }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Património</div>
+    <div class="value">{{ networth.total | eur }}</div>
+    <div class="delta">contas {{ networth.accounts | eur }} · invest. {{ networth.investments | eur }}</div>
+  </div>
+</div>
+
+{% if alerts %}
+<div class="card" style="margin-bottom:16px">
+  <h2>⚠️ Onde estás a gastar mais do que o normal</h2>
+  {% for a in alerts %}
+  <div class="alert">
+    <b>{{ a.category }}</b>:
+    {% if a.projected %}
+      já vais em {{ a.current | eur }} e, a este ritmo, acabas o mês em <b>{{ a.projection | eur }}</b>
+      — {{ a.pct }}% acima da tua média ({{ a.average | eur }}).
+    {% else %}
+      {{ a.current | eur }} este mês, <b>{{ a.pct }}% acima</b> da tua média dos últimos 3 meses ({{ a.average | eur }}).
+    {% endif %}
+    <a class="small" href="/transacoes?categoria={{ a.category | urlencode }}">ver movimentos</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid two">
+  <div class="card">
+    <h2>Gastos por categoria — últimos 6 meses</h2>
+    <div class="chart-box"><canvas id="stacked"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Este mês por categoria</h2>
+    <div class="chart-box"><canvas id="donut"></canvas></div>
+  </div>
+</div>
+
+<div class="grid two-even">
+  <div class="card">
+    <h2>Categorias este mês</h2>
+    {% if by_cat %}
+    {% set top = by_cat[0].total %}
+    <table>
+      <tr><th>Categoria</th><th class="num">Este mês</th><th class="num hide-sm">Mês passado</th></tr>
+      {% for c in by_cat %}
+      <tr>
+        <td>
+          <a href="/transacoes?categoria={{ c.category | urlencode }}">{{ c.category }}</a>
+          <div class="bar"><i style="width: {{ (c.total / top * 100) | round(1) }}%"></i></div>
+        </td>
+        <td class="num">{{ c.total | eur }}</td>
+        <td class="num muted hide-sm">{{ by_cat_prev.get(c.category, 0) | eur }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Ainda sem gastos este mês.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Onde gastaste mais este mês</h2>
+    {% if merchants %}
+    <table>
+      <tr><th>Comerciante</th><th class="num">Vezes</th><th class="num">Total</th></tr>
+      {% for m in merchants %}
+      <tr>
+        <td>{{ m.description }}<br><span class="pill grey">{{ m.category }}</span></td>
+        <td class="num">{{ m.n }}</td>
+        <td class="num">{{ m.total | eur }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Ainda sem gastos este mês.</p>{% endif %}
+  </div>
+</div>
+
+<div class="grid two-even">
+  <div class="card">
+    <h2>Entradas vs. gastos</h2>
+    <div class="chart-box sm"><canvas id="flow"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Despesas fixas que faltam este mês</h2>
+    {% if forecast.upcoming %}
+    <table>
+      {% for d, r in forecast.upcoming %}
+      <tr>
+        <td>{{ d.strftime("%d/%m") }}</td>
+        <td>{{ r.description }}<br><span class="pill grey">{{ r.period }}</span></td>
+        <td class="num">{{ r.amount | eur }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Nada previsto até ao fim do mês. <a href="/recorrentes">Ver todas as despesas fixas</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const data = {{ chart_json | safe }};
+const { palette, eur, v } = window.fin;
+// Cor fixa por categoria; "Restantes" fica sempre a cinzento
+const colorOf = (label) => label === "Restantes" ? palette[7] : palette[data.order.indexOf(label) % 7];
+const tooltipEur = { callbacks: { label: (c) => `${c.dataset.label || c.label}: ${eur(c.parsed.y ?? c.parsed)}` } };
+
+new Chart(document.getElementById("stacked"), {
+  type: "bar",
+  data: {
+    labels: data.labels,
+    datasets: data.stacked.map((s) => ({ ...s, backgroundColor: colorOf(s.label), borderRadius: 2 })),
+  },
+  options: {
+    maintainAspectRatio: false,
+    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: eur } } },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } }, tooltip: tooltipEur },
+  },
+});
+
+new Chart(document.getElementById("donut"), {
+  type: "doughnut",
+  data: {
+    labels: data.donut.labels,
+    datasets: [{ data: data.donut.data, backgroundColor: data.donut.labels.map(colorOf), borderColor: v("--card") }],
+  },
+  options: {
+    maintainAspectRatio: false, cutout: "62%",
+    plugins: { legend: { position: "right", labels: { boxWidth: 10 } },
+               tooltip: { callbacks: { label: (c) => `${c.label}: ${eur(c.parsed)}` } } },
+  },
+});
+
+new Chart(document.getElementById("flow"), {
+  type: "bar",
+  data: {
+    labels: data.labels,
+    datasets: [
+      { label: "Entradas", data: data.income, backgroundColor: v("--pos"), borderRadius: 3 },
+      { label: "Gastos", data: data.spent, backgroundColor: v("--neg"), borderRadius: 3 },
+    ],
+  },
+  options: {
+    maintainAspectRatio: false,
+    scales: { x: { grid: { display: false } }, y: { ticks: { callback: eur } } },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } }, tooltip: tooltipEur },
+  },
+});
+</script>
+{% endblock %}

@@ -1,0 +1,3 @@
+Data,Hora,Produto,ISIN,Bolsa de referência,Bolsa,Quantidade,Preços,,Valor local,,Valor,,Taxa de Câmbio,Custos de transação e/ou taxas de terceiros,,Total,,ID da Ordem
+28-08-2026,09:05,VANGUARD FTSE ALL-WORLD UCITS ETF USD ACC,IE00BK5BQT80,EAM,XET,6,"110,00",EUR,"-660,00",EUR,"-660,00",EUR,,"-1,00",EUR,"-661,00",EUR,abc-1
+28-09-2026,09:05,VANGUARD FTSE ALL-WORLD UCITS ETF USD ACC,IE00BK5BQT80,EAM,XET,4,"115,00",EUR,"-460,00",EUR,"-460,00",EUR,,"-1,00",EUR,"-461,00",EUR,abc-2

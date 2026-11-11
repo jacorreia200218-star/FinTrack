@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinTrack</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Fin<span>Track</span></a>
+    <nav>
+      <a href="/" class="{{ 'on' if active == 'dashboard' }}">Painel</a>
+      <a href="/transacoes" class="{{ 'on' if active == 'transactions' }}">Movimentos</a>
+      <a href="/recorrentes" class="{{ 'on' if active == 'recurring' }}">Fixas</a>
+      <a href="/portfolio" class="{{ 'on' if active == 'portfolio' }}">Portfólio</a>
+      <a href="/importar" class="{{ 'on' if active == 'import' }} cta">Importar</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    // Cores dos gráficos a partir das variáveis CSS (funciona em modo claro e escuro)
+    window.fin = (() => {
+      const css = getComputedStyle(document.documentElement);
+      const v = (n) => css.getPropertyValue(n).trim();
+      const palette = ["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"].map(v);
+      Chart.defaults.color = v("--muted");
+      Chart.defaults.borderColor = v("--line");
+      Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+      const eur = (x) => new Intl.NumberFormat("pt-PT", {style: "currency", currency: "EUR", maximumFractionDigits: 0}).format(x);
+      return { v, palette, eur };
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

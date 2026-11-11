@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Portfólio</h1>
+{% if pf.snapshot_date %}
+<p class="sub">Posições da DEGIRO a {{ pf.snapshot_date }}. Para atualizar, exporta de novo o Portfolio.csv e importa-o.</p>
+
+<div class="grid kpis">
+  <div class="card kpi">
+    <div class="label">Valor dos ETFs</div>
+    <div class="value">{{ pf.value | eur }}</div>
+    <div class="delta">+ {{ pf.cash | eur }} em dinheiro na DEGIRO</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Investido (líquido)</div>
+    <div class="value">{{ pf.net_invested | eur }}</div>
+    <div class="delta">{% if pf.net_invested is none %}importa o Transactions.csv{% else %}comissões: {{ pf.fees | eur }}{% endif %}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Ganho / perda</div>
+    <div class="value {{ 'pos' if pf.gain and pf.gain > 0 else 'neg' if pf.gain }}">{{ pf.gain | eur }}</div>
+    <div class="delta">{% if pf.gain is not none and pf.net_invested %}{{ ((pf.gain / pf.net_invested) * 100) | round(1) }}%{% endif %}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Património total</div>
+    <div class="value">{{ networth.total | eur }}</div>
+    <div class="delta">contas {{ networth.accounts | eur }}</div>
+  </div>
+</div>
+
+<div class="grid two">
+  <div class="card table-wrap">
+    <h2>Posições</h2>
+    <table>
+      <tr><th>ETF</th><th class="num">Qtd.</th><th class="num">Valor</th><th class="num hide-sm">Peso</th><th class="num">Ganho</th></tr>
+      {% for p in pf.positions if p.isin != "CASH" %}
+      <tr>
+        <td>{{ p.name }}<br><span class="small muted">{{ p.isin }}</span></td>
+        <td class="num">{{ p.quantity | round(4) | float }}</td>
+        <td class="num">{{ p.value_eur | eur }}</td>
+        <td class="num hide-sm">{{ p.weight }}%</td>
+        <td class="num {{ 'pos' if p.gain and p.gain > 0 else 'neg' if p.gain }}">
+          {% if p.gain is not none %}{{ p.gain | eur }}<br><span class="small">{{ p.gain_pct }}%</span>{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>Distribuição</h2>
+    <div class="chart-box"><canvas id="alloc"></canvas></div>
+  </div>
+</div>
+
+<div class="card table-wrap">
+  <h2>Saldos das contas</h2>
+  <table>
+    {% for b in networth.balances %}
+    <tr><td>{{ b.account }}</td><td class="small muted">a {{ b.date }}</td><td class="num">{{ b.balance | eur if b.currency == "EUR" else b.balance ~ " " ~ b.currency }}</td></tr>
+    {% else %}
+    <tr><td class="muted">Sem saldos (os extratos importados não tinham coluna de saldo).</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="card empty">
+  <p class="sub">Ainda não importaste o portfólio da DEGIRO.</p>
+  <p class="small muted">No site da DEGIRO: <b>Portfólio → Exportar → CSV</b> (e, para calcular ganhos, <b>Caixa → Transações → Exportar → CSV</b>).</p>
+  <a class="btn" href="/importar">Importar</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if pf.snapshot_date %}
+<script>
+const data = {{ chart_json | safe }};
+const { palette, eur, v } = window.fin;
+new Chart(document.getElementById("alloc"), {
+  type: "doughnut",
+  data: { labels: data.labels, datasets: [{ data: data.data, backgroundColor: data.labels.map((_, i) => palette[i % palette.length]), borderColor: v("--card") }] },
+  options: { maintainAspectRatio: false, cutout: "62%",
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } },
+               tooltip: { callbacks: { label: (c) => `${c.label}: ${eur(c.parsed)}` } } } },
+});
+</script>
+{% endif %}
+{% endblock %}

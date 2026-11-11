@@ -1,0 +1,3 @@
+Tipo,Produto,Data de início,Data de Conclusão,Descrição,Montante,Comissão,Moeda,Estado,Saldo
+Pagamento com cartão,Atual,2026-09-02 12:30:00,2026-09-03 08:00:00,Continente,"-41,20","0,00",EUR,CONCLUÍDO,"958,80"
+Pagamento com cartão,Atual,2026-09-03 12:30:00,2026-09-03 13:00:00,Netflix,"-13,99","0,00",EUR,CONCLUÍDO,"944,81"

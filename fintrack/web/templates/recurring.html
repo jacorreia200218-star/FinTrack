@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Despesas fixas</h1>
+<p class="sub">Detetadas automaticamente: pagamentos ao mesmo sítio, com valor parecido, a intervalos regulares.</p>
+
+<div class="grid kpis">
+  <div class="card kpi">
+    <div class="label">Total fixo por mês</div>
+    <div class="value">{{ forecast.monthly_fixed | eur }}</div>
+    <div class="delta">{{ active_recs | length }} despesas ativas</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Já pago este mês</div>
+    <div class="value">{{ forecast.paid_total | eur }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Ainda por pagar este mês</div>
+    <div class="value">{{ forecast.upcoming_total | eur }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Por ano</div>
+    <div class="value">{{ (forecast.monthly_fixed * 12) | eur }}</div>
+  </div>
+</div>
+
+<div class="card table-wrap" style="margin-bottom:16px">
+  <h2>Ativas</h2>
+  {% if active_recs %}
+  <table>
+    <tr><th>Descrição</th><th class="hide-sm">Categoria</th><th>Frequência</th><th class="num">Valor</th><th class="num hide-sm">Por mês</th><th class="num">Próxima</th></tr>
+    {% for r in active_recs %}
+    <tr>
+      <td><a href="/transacoes?q={{ r.description[:25] | urlencode }}">{{ r.description }}</a><br><span class="small muted">{{ r.occurrences }} pagamentos, último a {{ r.last_date.strftime("%d/%m/%Y") }}</span></td>
+      <td class="hide-sm"><span class="pill grey">{{ r.category }}</span></td>
+      <td>{{ r.period }}</td>
+      <td class="num">{{ r.amount | eur }}</td>
+      <td class="num hide-sm">{{ r.monthly_cost | eur }}</td>
+      <td class="num">{{ r.next_date.strftime("%d/%m") }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Ainda não detetei despesas fixas. Preciso de pelo menos 3 meses de movimentos.</p>
+  {% endif %}
+</div>
+
+{% if inactive_recs %}
+<div class="card table-wrap">
+  <h2>Provavelmente canceladas</h2>
+  <p class="small muted">Eram regulares mas deixaram de aparecer.</p>
+  <table>
+    {% for r in inactive_recs %}
+    <tr>
+      <td>{{ r.description }}</td>
+      <td>{{ r.period }}</td>
+      <td class="num">{{ r.amount | eur }}</td>
+      <td class="num small muted">último: {{ r.last_date.strftime("%d/%m/%Y") }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Movimentos</h1>
+<p class="sub">{{ total }} movimentos · saldo do filtro {{ sum | eur }}. Muda a categoria e a app aprende para o mesmo comerciante.</p>
+
+{% if request.query_params.get("alterados") %}
+<div class="flash">Categoria atualizada em {{ request.query_params.get("alterados") }} movimento(s).</div>
+{% endif %}
+
+<form class="filters" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Pesquisar descrição">
+  <select name="categoria">
+    <option value="">Todas as categorias</option>
+    {% for c in categories %}<option {{ 'selected' if c == categoria }}>{{ c }}</option>{% endfor %}
+  </select>
+  <select name="conta">
+    <option value="">Todas as contas</option>
+    {% for a in accounts %}<option {{ 'selected' if a == conta }}>{{ a }}</option>{% endfor %}
+  </select>
+  <select name="mes">
+    <option value="">Todos os meses</option>
+    {% for m in months %}<option value="{{ m }}" {{ 'selected' if m == mes }}>{{ m | month }}</option>{% endfor %}
+  </select>
+  <button type="submit">Filtrar</button>
+  {% if q or categoria or conta or mes %}<a class="small" href="/transacoes" style="align-self:center">limpar</a>{% endif %}
+</form>
+
+<div class="card table-wrap">
+  <table>
+    <tr><th>Data</th><th>Descrição</th><th class="hide-sm">Conta</th><th>Categoria</th><th class="num">Montante</th></tr>
+    {% for r in rows %}
+    <tr id="t{{ r.id }}">
+      <td class="small" style="white-space:nowrap">{{ r.date[8:10] }}/{{ r.date[5:7] }}/{{ r.date[2:4] }}</td>
+      <td>{{ r.description }}</td>
+      <td class="hide-sm small muted">{{ r.account }}</td>
+      <td>
+        <form class="cat-form" method="post" action="/transacoes/{{ r.id }}/categoria">
+          <select class="cat" name="category" onchange="this.form.submit()">
+            {% for c in categories %}<option {{ 'selected' if c == r.category }}>{{ c }}</option>{% endfor %}
+          </select>
+          <label title="Aplicar a todos os movimentos deste comerciante e lembrar para o futuro">
+            <input type="checkbox" name="remember" value="1" checked> todos
+          </label>
+        </form>
+      </td>
+      <td class="num {{ 'pos' if r.amount > 0 }}">{{ r.amount | eur }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Sem movimentos.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if pages > 1 %}
+<p class="small">
+  {% if page > 1 %}<a href="?q={{ q|urlencode }}&categoria={{ categoria|urlencode }}&conta={{ conta|urlencode }}&mes={{ mes }}&page={{ page - 1 }}">← anterior</a>{% endif %}
+  página {{ page }} de {{ pages }}
+  {% if page < pages %}<a href="?q={{ q|urlencode }}&categoria={{ categoria|urlencode }}&conta={{ conta|urlencode }}&mes={{ mes }}&page={{ page + 1 }}">seguinte →</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}
