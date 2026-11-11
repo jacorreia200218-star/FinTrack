@@ -290,6 +290,29 @@ select.cat { padding: 4px 8px; font-size: 12px; max-width: 170px; }
   .cat-form label { display: none; }
   input[type=search] { min-width: 0; width: 100%; }
 }
+/* grelhas de indicadores que se ajustam ao ecrã */
+.kpis-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpis-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.kpi .cat-form { flex-wrap: wrap; }
+.kpi .cat-form input { min-width: 0; flex: 1 1 120px; }
+
+@media (max-width: 900px) {
+  .kpis-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpis-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .kpis-3, .kpis-2 { grid-template-columns: 1fr; }
+  .fc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  nav { flex-wrap: nowrap; }
+  th, td { padding: 9px 5px; font-size: 12px; }
+  th { font-size: 10px; }
+  .card { padding: 16px; }
+  .page-head h1 { font-size: 1.1rem; }
+  nav.tabs a { padding: 7px 12px; }
+  .cat-form input { width: 70px !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

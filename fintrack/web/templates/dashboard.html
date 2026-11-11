@@ -46,7 +46,7 @@
 
 <div class="card" style="margin-bottom:20px">
   <div class="card-head"><h2>Saldo previsto em 30 dias · contas pessoais</h2></div>
-  <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+  <div class="fc-grid">
     <div><div class="small muted">Hoje</div><div class="num" style="font-size:1.1rem;text-align:left">{{ forecast30.now | eur }}</div></div>
     <div><div class="small muted">+ rendimento médio</div><div class="num pos" style="text-align:left">{{ forecast30.income | eur }}</div></div>
     <div><div class="small muted">− fixas a vencer</div><div class="num neg" style="text-align:left">{{ forecast30.fixed_due | eur }}</div></div>

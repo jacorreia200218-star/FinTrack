@@ -13,7 +13,7 @@
     <div class="card-head"><h2>Orçamentos do mês</h2></div>
     <div class="table-wrap">
       <table>
-        <tr><th>Categoria</th><th class="num">Gasto</th><th class="num">Limite</th><th style="min-width:160px">Estado</th></tr>
+        <tr><th>Categoria</th><th class="num">Gasto</th><th class="num">Limite</th><th class="hide-sm" style="min-width:160px">Estado</th></tr>
         {% for r in rows %}
         <tr>
           <td>{{ r.category }}</td>
@@ -21,11 +21,11 @@
           <td class="num">
             <form method="post" action="/planear/orcamento" class="cat-form" style="justify-content:flex-end">
               <input type="hidden" name="category" value="{{ r.category }}">
-              <input name="monthly" value="{{ '%.0f' % r.limit if r.limit else '' }}" placeholder="—" inputmode="decimal" style="width:90px;text-align:right">
+              <input name="monthly" value="{{ '%.0f' % r.limit if r.limit else '' }}" placeholder="—" inputmode="decimal" style="width:80px;text-align:right">
               <button type="submit" style="padding:4px 9px">✓</button>
             </form>
           </td>
-          <td>
+          <td class="hide-sm">
             {% if r.pct is not none %}
               <div class="bar"><i style="width:{{ [r.pct, 100] | min }}%;{{ 'background:var(--neg)' if r.over }}"></i></div>
               <span class="small {{ 'neg' if r.over else 'muted' }}">{{ r.pct }}%{% if r.over %} · acima do limite{% endif %}</span>
