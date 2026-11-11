@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Ligação aos bancos</h1>
+    <p class="sub">Os movimentos entram sozinhos todos os dias. Só leitura: a app não consegue fazer transferências.</p>
+  </div>
+  {% if configured %}
+  <form method="post" action="/banco/sincronizar"><button type="submit">Sincronizar agora</button></form>
+  {% endif %}
+</div>
+
+{% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+{% if erro %}<div class="flash" style="background:var(--neg-soft);color:var(--neg)">{{ erro }}</div>{% endif %}
+
+{% if not configured %}
+<div class="card">
+  <h2>Falta configurar</h2>
+  <p class="muted small" style="margin-top:10px">O servidor ainda não tem as credenciais do Enable Banking. Ver a secção de configuração em docs/INSTALAR.md.</p>
+</div>
+{% endif %}
+
+<div class="grid two-even">
+  {% for b in banks %}
+  <div class="card">
+    <div class="card-head">
+      <h2>{{ b.name }}</h2>
+      {% set st = b.link.status if b.link else 'none' %}
+      <span class="pill {{ 'grey' if st in ['none','pending'] }}">
+        {{ {'linked':'Ligado','expired':'Precisa de renovar','pending':'Por concluir','none':'Não ligado'}[st] }}
+      </span>
+    </div>
+    {% if b.link and b.link.status == 'linked' %}
+      <table>
+        <tr><td class="muted">Última sincronização</td><td class="num">{{ b.link.last_sync or 'ainda não' }}</td></tr>
+        <tr><td class="muted">Contas</td><td class="num">{{ (b.link.accounts | fromjson) | length }}</td></tr>
+        {% if b.link.valid_until %}<tr><td class="muted">Válido até</td><td class="num">{{ b.link.valid_until[:10] }}</td></tr>{% endif %}
+      </table>
+    {% elif b.link and b.link.last_error %}
+      <p class="small muted">{{ b.link.last_error }}</p>
+    {% else %}
+      <p class="small muted">Ainda não ligado.</p>
+    {% endif %}
+    {% if configured %}
+    <form method="post" action="/banco/ligar" style="margin-top:16px">
+      <input type="hidden" name="bank" value="{{ b.key }}">
+      <button type="submit">{{ 'Renovar ligação' if b.link and b.link.status in ['linked','expired'] else 'Ligar ' ~ b.name }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

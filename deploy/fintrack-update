@@ -18,6 +18,16 @@ if [ -f "$DB" ]; then
   log "cópia de segurança: $backup"
 fi
 
+# ---------- ligação aos bancos: sincroniza movimentos novos ----------
+if [ -f "$DATA_DIR/secrets/enablebanking.env" ]; then
+  # Corre como o utilizador da app, para a base de dados continuar a pertencer-lhe
+  if runuser -u fintrack -- env FINTRACK_DB="$DB" "$APP_DIR/.venv/bin/python" -m fintrack.bank.sync; then
+    log "bancos sincronizados"
+  else
+    log "falha ao sincronizar os bancos (ver linha acima)"
+  fi
+fi
+
 # ---------- atualização ----------
 cd "$APP_DIR" || exit 1
 if ! git fetch --quiet origin "$BRANCH"; then

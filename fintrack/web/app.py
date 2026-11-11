@@ -19,6 +19,8 @@ from starlette.background import BackgroundTask
 
 from .. import analytics, db, recurring
 from ..auth import COOKIE, MIN_LENGTH, SESSION_DAYS, Auth
+from ..bank import sync as bank_sync
+from ..bank.enable import EnableBankingError, is_configured, load_config
 from ..categories import CATEGORIES
 from ..importers import UnknownFormat, parse_file
 
@@ -82,6 +84,7 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["eur"] = eur
     templates.env.filters["month"] = month_label
+    templates.env.filters["fromjson"] = lambda v: json.loads(v or "[]")
     templates.env.globals["source_label"] = lambda s: SOURCE_LABELS.get(s, s)
     templates.env.globals["auth_enabled"] = lambda: auth.configured
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -264,6 +267,56 @@ def create_app(db_path: str | Path | None = None, require_login: bool | None = N
         dest.close()
         return FileResponse(tmp, filename=tmp.name, media_type="application/vnd.sqlite3",
                             background=BackgroundTask(shutil.rmtree, tmp.parent, ignore_errors=True))
+
+    bank_sync.ensure_schema(conn)
+
+    def _redirect_url() -> str:
+        return load_config().get("EB_REDIRECT_URL", "")
+
+    @app.get("/banco", response_class=HTMLResponse)
+    def bank_page(request: Request, msg: str = "", erro: str = ""):
+        links = conn.execute("SELECT * FROM bank_links ORDER BY id DESC").fetchall()
+        by_bank = {}
+        for l in links:  # só a ligação mais recente de cada banco
+            by_bank.setdefault(l["bank"], l)
+        banks = []
+        for key, (_, _, name) in bank_sync.BANKS.items():
+            banks.append({"key": key, "name": name, "link": by_bank.get(key)})
+        return render(request, "banco.html", active="bank", banks=banks,
+                      configured=is_configured(), msg=msg, erro=erro)
+
+    @app.post("/banco/ligar", response_class=HTMLResponse)
+    def bank_connect(request: Request, bank: str = Form(...)):
+        if not is_configured():
+            return RedirectResponse("/banco?erro=O+Enable+Banking+ainda+n%C3%A3o+est%C3%A1+configurado+no+servidor", status_code=303)
+        try:
+            from ..bank.enable import Client
+            url = bank_sync.begin_link(conn, Client(), bank, _redirect_url())
+            return RedirectResponse(url, status_code=303)
+        except (EnableBankingError, ValueError) as e:
+            return RedirectResponse(f"/banco?erro={urlencode({'e': str(e)})[2:]}", status_code=303)
+
+    @app.get("/callback")
+    def bank_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+        if error or not code:
+            return RedirectResponse("/banco?erro=A+liga%C3%A7%C3%A3o+foi+cancelada+ou+recusada", status_code=303)
+        try:
+            from ..bank.enable import Client
+            bank = bank_sync.finish_link(conn, Client(), state, code)
+            added = bank_sync.sync_link(conn, Client(), conn.execute(
+                "SELECT * FROM bank_links WHERE bank = ? AND status = 'linked' ORDER BY id DESC LIMIT 1", (bank,)).fetchone())
+            return RedirectResponse(f"/banco?msg=Liga%C3%A7%C3%A3o+feita.+{added}+movimentos+importados.", status_code=303)
+        except EnableBankingError as e:
+            return RedirectResponse(f"/banco?erro={urlencode({'e': str(e)})[2:]}", status_code=303)
+
+    @app.post("/banco/sincronizar")
+    def bank_sync_now():
+        results = bank_sync.sync_all(conn)
+        ok = sum(r.get("added", 0) for r in results if r["ok"])
+        bad = [r for r in results if not r["ok"]]
+        if bad:
+            return RedirectResponse(f"/banco?erro={urlencode({'e': 'Algum banco precisa de ser ligado de novo.'})[2:]}", status_code=303)
+        return RedirectResponse(f"/banco?msg=Sincronizado.+{ok}+movimentos+novos.", status_code=303)
 
     @app.get("/importar", response_class=HTMLResponse)
     def import_page(request: Request):

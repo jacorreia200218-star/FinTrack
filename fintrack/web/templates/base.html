@@ -23,6 +23,7 @@
       <a href="/transacoes" class="{{ 'on' if active == 'transactions' }}">Movimentos</a>
       <a href="/recorrentes" class="{{ 'on' if active == 'recurring' }}">Fixas</a>
       <a href="/portfolio" class="{{ 'on' if active == 'portfolio' }}">Portfólio</a>
+      <a href="/banco" class="{{ 'on' if active == 'bank' }}">Bancos</a>
       <a href="/importar" class="{{ 'on' if active == 'import' }} cta">Importar</a>
       {% if auth_enabled() and active %}
       <form method="post" action="/sair" class="logout"><button type="submit" title="Terminar sessão">Sair</button></form>
