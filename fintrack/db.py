@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount REAL NOT NULL,
     currency TEXT NOT NULL DEFAULT 'EUR',
     balance REAL,
+    balance_date TEXT,
     kind TEXT NOT NULL DEFAULT '',
     merchant TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL,
@@ -82,7 +83,17 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Acrescenta colunas novas a bases de dados criadas por versões anteriores."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(transactions)")}
+    if "balance_date" not in cols:
+        conn.execute("ALTER TABLE transactions ADD COLUMN balance_date TEXT")
+        conn.execute("UPDATE transactions SET balance_date = date")
+        conn.commit()
 
 
 def _hash(*parts) -> str:
@@ -109,10 +120,12 @@ def save_import(conn: sqlite3.Connection, result: ImportResult, filename: str) -
         h = _hash(*base, seen[base])
         cur = conn.execute(
             """INSERT OR IGNORE INTO transactions
-               (account, date, description, amount, currency, balance, kind, merchant, category, hash, import_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (account, date, description, amount, currency, balance, balance_date, kind, merchant, category,
+                hash, import_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 t.account, t.date.isoformat(), t.description, t.amount, t.currency, t.balance,
+                (t.balance_date or t.date).isoformat(),
                 t.kind, merchant_key(t.description),
                 categorize(t.description, t.amount, t.kind, rules), h, import_id,
             ),

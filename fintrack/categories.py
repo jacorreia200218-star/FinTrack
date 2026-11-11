@@ -43,6 +43,8 @@ DEFAULT_RULES: dict[str, list[str]] = {
     "Transferências internas": [
         "p/ revolut", "para revolut", "revolut bank", "revolut ltd", "top-up", "topup",
         "trf p/ activobank", "trf de activobank",
+        # Revolut: movimentos entre a conta e as subcontas de poupança
+        "de eur ", "para eur ", "from eur ", "to eur ",
     ],
     "Supermercado": [
         "pingo doce", "continente", "modelo continente", "lidl", "aldi", "mercadona",
@@ -54,7 +56,8 @@ DEFAULT_RULES: dict[str, list[str]] = {
         "restaurante", "mcdonald", "burger king", "kfc", "telepizza", "pizza hut",
         "domino", "starbucks", "pastelaria", "padaria", "cafe ", "cafetaria", "taberna",
         "tasca", "churrasqueira", "sushi", "h3", "vitaminas", "padaria portuguesa",
-        "cervejaria", "snack bar",
+        "cervejaria", "snack bar", "rissois", "cachorro", "pizzaria", "hamburgueria",
+        "churrasco", "marisqueira", "petisco", "kebab", "restaurant", "tasquinha", "wok ",
     ],
     "Transportes": [
         "uber", "bolt", "cabify", "free now", "comboios de portugal", "cp ", "metro",
@@ -65,7 +68,7 @@ DEFAULT_RULES: dict[str, list[str]] = {
         "netflix", "spotify", "disney", "hbo", "max.com", "prime video", "amazon prime",
         "apple.com", "icloud", "youtube", "google one", "google storage", "chatgpt",
         "openai", "claude.ai", "anthropic", "playstation", "xbox", "nintendo", "steam",
-        "patreon", "dazn", "sport tv", "skyshowtime", "audible", "kindle",
+        "patreon", "google workspace", "re:apple(?! ?pay)", "dazn", "sport tv", "skyshowtime", "audible", "kindle",
     ],
     "Telecomunicações": ["vodafone", "meo ", "meo,", "nos comunicacoes", "digi ", "nowo", "uzo "],
     "Casa e Utilidades": [
@@ -75,16 +78,16 @@ DEFAULT_RULES: dict[str, list[str]] = {
     "Combustível": ["galp", "repsol", "bp ", "prio", "cepsa", "shell", "moeve", "intermarche gas"],
     "Saúde": [
         "farmacia", "wells", "cuf", "luz saude", "hospital", "clinica", "dentista",
-        "medicare", "multicare", "opticas", "multiopticas",
+        "medicare", "multicare", "optica", "otica", "opticas", "multiopticas",
     ],
     "Ginásio e Desporto": [
         "fitness hut", "solinca", "holmes place", "basic-fit", "basic fit", "go fit",
-        "ginasio", "decathlon", "padel", "myfit", "vivafit",
+        "ginasio", "decathlon", "padel", "playtomic", "myfit", "vivafit",
     ],
     "Compras": [
         "amazon", "worten", "fnac", "zara", "primark", "h&m", "pull&bear", "bershka",
         "shein", "aliexpress", "temu", "mango", "sport zone", "radio popular", "pcdiga",
-        "globaldata", "el corte ingles", "uniqlo", "nike", "adidas",
+        "globaldata", "el corte ingles", "uniqlo", "nike", "adidas", "normal",
     ],
     "Lazer": ["cinema", "nos cinemas", "uci", "ticketline", "blueticket", "bilheteira", "museu", "bar "],
     "Viagens": [
@@ -109,11 +112,19 @@ REVOLUT_KIND_RULES = {
 }
 
 
-# Cada palavra-chave tem de começar no início de uma palavra ("aki" não apanha "takis")
+# Cada palavra-chave tem de começar no início de uma palavra ("aki" não apanha "takis").
+# Entradas "re:..." são expressões regulares (ex.: "apple" mas não "apple pay").
+def _kw(kw: str) -> str:
+    return r"(?<![a-z0-9])" + (kw[3:] if kw.startswith("re:") else re.escape(kw))
+
+
 _COMPILED_RULES = [
-    (category, re.compile("|".join(r"(?<![a-z0-9])" + re.escape(kw) for kw in keywords)))
+    (category, re.compile("|".join(_kw(kw) for kw in keywords)))
     for category, keywords in DEFAULT_RULES.items()
 ]
+
+# Compras de cripto na Revolut aparecem como "câmbio" (ex.: "Conversão cambial para BTC")
+_CRYPTO = re.compile(r"(?<![a-z0-9])(btc|eth|sol|xrp|ada|doge|dot|ltc|usdc|usdt|bitcoin|ethereum|cripto|crypto)(?![a-z0-9])")
 
 
 def merchant_key(description: str) -> str:
@@ -148,6 +159,8 @@ def categorize(
         if p and (p == key or p in text):
             return category
 
+    if kind == "EXCHANGE" and _CRYPTO.search(text):
+        return "Investimento"
     if kind in REVOLUT_KIND_RULES:
         return REVOLUT_KIND_RULES[kind]
 

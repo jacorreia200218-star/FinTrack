@@ -145,11 +145,11 @@ def alerts(conn: sqlite3.Connection, today: date | None = None, fixed_merchants:
 def account_balances(conn: sqlite3.Connection) -> list[dict]:
     """Saldo mais recente de cada conta (do próprio extrato)."""
     rows = conn.execute(
-        """SELECT t.account, t.balance, t.date, t.currency FROM transactions t
+        """SELECT t.account, t.balance, t.balance_date AS date, t.currency FROM transactions t
            WHERE t.balance IS NOT NULL AND t.id = (
                SELECT t2.id FROM transactions t2
                WHERE t2.account = t.account AND t2.balance IS NOT NULL
-               ORDER BY t2.date DESC, t2.id DESC LIMIT 1)
+               ORDER BY t2.balance_date DESC, t2.id DESC LIMIT 1)
            ORDER BY t.account"""
     ).fetchall()
     return [dict(r) for r in rows]

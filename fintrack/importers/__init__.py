@@ -15,6 +15,7 @@ class Txn:
     currency: str = "EUR"
     balance: float | None = None
     kind: str = ""  # tipo original (ex.: CARD_PAYMENT, TOPUP na Revolut)
+    balance_date: date | None = None  # quando o saldo foi registado (se diferente de date)
 
 
 @dataclass

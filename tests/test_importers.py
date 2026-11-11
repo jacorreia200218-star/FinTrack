@@ -44,7 +44,8 @@ def test_revolut_en():
     assert r.skipped == 1  # pendente
     assert len(r.transactions) == 5
     pingo = r.transactions[1]
-    assert pingo.date == date(2026, 9, 3)  # usa a data de conclusão
+    assert pingo.date == date(2026, 9, 2)  # usa a data da compra, não da cobrança
+    assert pingo.balance_date == date(2026, 9, 3)
     assert pingo.amount == -23.45
     assert pingo.balance == 476.55
     assert pingo.kind == "CARD_PAYMENT"
@@ -58,6 +59,31 @@ def test_revolut_pt():
     assert r.source == "revolut"
     assert [t.amount for t in r.transactions] == [-41.20, -13.99]
     assert r.transactions[0].account == "Revolut"
+
+
+def test_revolut_pt_app_export():
+    """Formato real da app em português: tipos traduzidos, subcontas de poupança, cripto."""
+    from fintrack.categories import categorize
+
+    r = load("revolut_pt_app.csv")
+    by_desc = {(t.account, t.description[:20]): t for t in r.transactions}
+    assert len(r.transactions) == 12
+
+    via_verde = by_desc[("Revolut", "Via Verde")]
+    assert via_verde.date == date(2026, 9, 17) and via_verde.kind == "CARD_PAYMENT"
+
+    accounts = {t.account for t in r.transactions}
+    assert accounts == {"Revolut", "Revolut Poupança A", "Revolut Poupança B"}
+    juros = by_desc[("Revolut Poupança A", "Pagamento de juros l")]
+    assert juros.amount == 0.07 and juros.kind == "INTEREST"  # líquido de impostos
+
+    cats = {t.description[:20]: categorize(t.description, t.amount, t.kind) for t in r.transactions}
+    assert cats["Conversão cambial pa"] == "Investimento"
+    assert cats["Carregamento com App"] == "Transferências internas"
+    assert cats["De EUR Poupança A"] == "Transferências internas"
+    assert cats["Para EUR Poupança B"] == "Transferências internas"
+    assert cats["Apple"] == "Subscrições"
+    assert cats["Pagamento de juros l"] == "Rendimento"
 
 
 def test_activobank_with_preamble():
@@ -84,6 +110,14 @@ def test_degiro_portfolio():
     assert cash.isin == "CASH" and cash.value_eur == 12.5
     assert etf.isin == "IE00BK5BQT80"
     assert etf.quantity == 10 and etf.value_eur == 1205.0
+
+
+def test_degiro_portfolio_pt_2026():
+    r = load("degiro_portfolio_pt_2026.csv")
+    cash, etf = r.positions
+    assert cash.isin == "CASH" and cash.value_eur == 10.0
+    assert etf.isin == "IE00B4L5Y983"
+    assert etf.quantity == 2 and etf.price == 100.5 and etf.value_eur == 201.0
 
 
 def test_degiro_transactions():

@@ -31,10 +31,11 @@ def try_parse(rows: list[list[str]]) -> ImportResult | None:
 def _parse_portfolio(rows: list[list[str]]) -> ImportResult:
     header = rows[0]
     c_name = find_col(header, "produto", "product", exact=True)
-    c_isin = find_col(header, "ticker/isin", "symbol/isin", "isin")
-    c_qty = find_col(header, "quantidade", "amount", "quantity", exact=True)
-    c_price = find_col(header, "preco de fecho", "closing")
-    c_local = find_col(header, "valor local", "local value")
+    c_isin = next((i for i, h in enumerate(header) if "isin" in normalize(h)), None)
+    c_qty = find_col(header, "quantidade", "quant.", "quant", "amount", "quantity", exact=True)
+    c_price = find_col(header, "preco de fecho", "preco", "closing", "price")
+    # Coluna com a moeda: 'Valor local' (antigo) ou 'Valor' (novo); o número vem na seguinte
+    c_local = find_col(header, "valor local", "local value") or find_col(header, "valor", "value", exact=True)
     c_eur = find_col(header, "valor em eur", "value in eur")
 
     result = ImportResult(source="degiro_portfolio")

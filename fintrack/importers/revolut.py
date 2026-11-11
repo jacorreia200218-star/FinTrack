@@ -6,10 +6,42 @@ Cabeçalho em português: Tipo,Produto,Data de início,Data de Conclusão,Descri
 
 from __future__ import annotations
 
+import re
+
 from . import ImportResult, Txn
 from .common import cell, find_col, normalize, parse_amount, parse_date
 
 _OK_STATES = {"completed", "concluido", "concluida", "completo", "completa"}
+
+# A app em português traduz o tipo; normalizamos para os códigos em inglês
+_KIND_PT = {
+    "pagamento com cartao": "CARD_PAYMENT",
+    "cambio": "EXCHANGE",
+    "transferencia": "TRANSFER",
+    "carregamento": "TOPUP",
+    "juros": "INTEREST",
+    "levantamento": "ATM",
+    "levantamento de numerario": "ATM",
+    "reembolso": "REFUND",
+    "reembolso do cartao": "CARD_REFUND",
+    "comissao": "FEE",
+    "cashback": "CASHBACK",
+    "recompensa": "REWARD",
+}
+
+_POCKET_RE = re.compile(r'(?:subconta\s+"([^"]+)"|(?:de|para|from|to)\s+EUR\s+(.+)$)', re.IGNORECASE)
+
+
+def _kind(raw: str) -> str:
+    return _KIND_PT.get(normalize(raw), raw.strip().upper().replace(" ", "_"))
+
+
+def _pocket(description: str) -> str | None:
+    """Nome da subconta de poupança ('Poupança JC') a partir da descrição."""
+    m = _POCKET_RE.search(description)
+    if not m:
+        return None
+    return (m.group(1) or m.group(2)).strip()
 
 
 def try_parse(rows: list[list[str]]) -> ImportResult | None:
@@ -40,7 +72,8 @@ def try_parse(rows: list[list[str]]) -> ImportResult | None:
         if state and state not in _OK_STATES:
             result.skipped += 1  # pendentes, revertidas, recusadas
             continue
-        d = parse_date(cell(row, c_completed)) or parse_date(cell(row, c_started))
+        # Data da compra (início), não da cobrança: a Via Verde, p.ex., só é cobrada semanas depois
+        d = parse_date(cell(row, c_started)) or parse_date(cell(row, c_completed))
         amount = parse_amount(cell(row, c_amount))
         if d is None or amount is None:
             result.skipped += 1
@@ -49,9 +82,12 @@ def try_parse(rows: list[list[str]]) -> ImportResult | None:
         currency = cell(row, c_currency) or "EUR"
         product = cell(row, c_product) or "Current"
 
+        description = cell(row, c_desc)
         account = "Revolut"
         if normalize(product) not in ("current", "atual", "corrente", "conta corrente"):
-            account += f" {product}"
+            # Poupanças: cada subconta tem o seu saldo, por isso fica como conta separada
+            pocket = _pocket(description) if normalize(product) in ("savings", "deposito", "poupanca") else None
+            account += f" {pocket or product}"
         if currency != "EUR":
             account += f" {currency}"
 
@@ -59,11 +95,12 @@ def try_parse(rows: list[list[str]]) -> ImportResult | None:
             Txn(
                 account=account,
                 date=d,
-                description=cell(row, c_desc),
+                description=description,
                 amount=round(amount - fee, 2),
                 currency=currency,
                 balance=parse_amount(cell(row, c_balance)),
-                kind=cell(row, c_type).upper(),
+                kind=_kind(cell(row, c_type)),
+                balance_date=parse_date(cell(row, c_completed)),
             )
         )
     return result

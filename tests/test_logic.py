@@ -130,6 +130,16 @@ def test_alerts_and_totals(conn):
     assert totals[0]["income"] == 2000
 
 
+def test_balances_use_latest_settled_movement(conn):
+    """Com a data da compra, um movimento antigo cobrado tarde não pode esconder o saldo final."""
+    db.save_import(conn, parse_file((FIX / "revolut_pt_app.csv").read_bytes(), "r.csv"), "r.csv")
+    bal = {b["account"]: b["balance"] for b in analytics.account_balances(conn)}
+    assert bal == {"Revolut": 185.44, "Revolut Poupança A": 900.07, "Revolut Poupança B": 525.02}
+    # Transferências entre conta e poupanças e compras de BTC não contam como gasto
+    oct_total = analytics.monthly_totals(conn, ["2026-10"])[0]["spent"]
+    assert oct_total == round(22.99 + 3.99 + 12.38, 2)
+
+
 def test_portfolio(conn):
     for name in ("degiro_portfolio_en.csv", "degiro_transactions_pt.csv"):
         db.save_import(conn, parse_file((FIX / name).read_bytes(), name), name)
