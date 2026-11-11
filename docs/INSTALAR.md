@@ -52,6 +52,11 @@ A partir daqui, se algum dia houver um custo, recebes um email.
 
 ### 2.3 Criar o servidor
 
+> Se a consola estiver em português, as secções chamam-se **Configuração da máquina**,
+> **SO e armazenamento** (botão **Alterar**), **Proteção de dados**, **Rede**,
+> **Observabilidade** e **Avançado → Automação → Script de inicialização**. O disco certo
+> chama-se **Disco permanente padrão**. O "equilibrado", que vem por defeito, é pago.
+
 1. Menu ☰ → **Compute Engine → VM instances**. Se pedir, carrega em **Enable** e espera um
    minuto.
 2. Carrega em **Create instance** e preenche:
@@ -76,8 +81,9 @@ A partir daqui, se algum dia houver um custo, recebes um email.
    | Size | **30 GB** (o máximo grátis) |
 
    Carrega em **Select**.
-4. Se aparecer uma secção **Data protection / Backups** 💶: escolhe **No backups**. Os
-   snapshots do Google são pagos, e a FinTrack já faz as suas próprias cópias.
+4. Em **Data protection / Proteção de dados** 💶: escolhe **No backups / Sem backups**. Por
+   defeito, o Google liga uma "programação de snapshot" (`default-schedule-1`), e os snapshots
+   são pagos. A FinTrack já faz as suas próprias cópias.
 5. Se aparecer **Observability → Install Ops Agent**: **desliga**. Gasta memória e não é
    preciso.
 6. **Networking:** deixa como está. **Não** marques "Allow HTTP/HTTPS traffic".
@@ -112,6 +118,16 @@ No telemóvel: instala a Tailscale com a **mesma conta** e abre o mesmo endereç
 Pronto 🎉 Vai a **Importar** e carrega os teus extratos.
 
 ---
+
+### 2.4 💶 Confirmar antes de continuar
+
+Menu da esquerda → **Storage → Discos**. A linha `fintrack` tem de mostrar:
+- **Tipo:** Disco permanente padrão / Standard persistent disk
+- **Programação de snapshot:** vazia
+
+Se não mostrar, apaga a instância (o disco vai junto), apaga também os snapshots em
+**Storage → Snapshots**, e cria de novo. Se o servidor já tinha entrado na Tailscale, remove-o
+lá e gera uma chave nova.
 
 ## 💶 Importante: antes de passarem 90 dias
 
