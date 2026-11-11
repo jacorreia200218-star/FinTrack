@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala a FinTrack num servidor Ubuntu (pensado para a Oracle Cloud "Always Free").
+# Instala a FinTrack num servidor Ubuntu (Google Cloud e2-micro grátis, Oracle Always Free, etc.).
 #
 # Corre como root. Pode ser colado como "script de inicialização" (cloud-init) ao criar o
 # servidor, ou corrido à mão. Pode correr várias vezes sem estragar nada.
@@ -125,7 +125,8 @@ if ! command -v tailscale >/dev/null 2>&1; then
 fi
 systemctl enable --now tailscaled
 
-if [ -n "${TS_AUTHKEY:-}" ]; then
+# Só usa a chave se o servidor ainda não estiver ligado (a chave só serve uma vez)
+if [ -n "${TS_AUTHKEY:-}" ] && ! tailscale status >/dev/null 2>&1; then
   # --ssh: permite entrar no servidor a partir dos teus aparelhos (sem abrir a porta 22)
   tailscale up --auth-key="$TS_AUTHKEY" --hostname=fintrack --ssh
 fi
@@ -144,4 +145,5 @@ else
   echo
   echo ">>> Falta ligar à Tailscale: corre 'sudo tailscale up --hostname=fintrack --ssh' e depois 'sudo tailscale serve --bg 8000'."
 fi
+touch "$DATA_DIR/.installed"
 echo "=== FinTrack: instalação terminada $(date -Is) ==="

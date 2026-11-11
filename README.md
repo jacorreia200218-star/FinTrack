@@ -24,7 +24,7 @@ Transferências entre as tuas contas (ActivoBank → Revolut), câmbios e invest
 
 ## Instalar num servidor grátis (para usar no iPad/telemóvel)
 
-Segue o guia **[docs/INSTALAR.md](docs/INSTALAR.md)**. Usa a Oracle Cloud (grátis) e a
+Segue o guia **[docs/INSTALAR.md](docs/INSTALAR.md)**. Usa o Google Cloud (grátis) e a
 Tailscale: a app fica acessível só nos teus aparelhos, com login de dois fatores e palavra-passe.
 
 ## Correr num computador
